@@ -1,0 +1,10 @@
+## Interface: 110005
+## Title: MCT
+## Notes: Track Completion towards Meta acheives
+## Author: Egepi, Toddish
+## Version: 1.0.0
+## RequiredDeps:
+## X-Curse-Project-ID: 999999
+## SavedVariables:
+## SavedVariablesPerCharacter:
+MCT.lua
