@@ -1,5 +1,5 @@
 ## Interface: 110005
-## Title: MCT
+## Title: MetaCompletionTracker
 ## Notes: Track Completion towards Meta acheives
 ## Author: Egepi, Toddish
 ## Version: 1.0.0
