@@ -74,6 +74,18 @@ local function AchievementCriteria(achievementID, parentID)
     end
 end
 
+local function IsWorldQuestActive(questID)
+    if not C_QuestLog.IsQuestFlaggedCompleted(questID) then
+        local isOnQuest = C_QuestLog.IsOnQuest(questID)
+        local isQuestAvailable = C_TaskQuest.IsActive(questID)
+        
+        if isOnQuest or isQuestAvailable then
+            return true  -- The world quest is currently active
+        end
+    end
+    return false  -- The world quest is not active
+end
+
 -- Define the function to show the achievements
 local function ShowAchievements(msg, editbox)
     if msg == "bfa" then
@@ -128,11 +140,23 @@ local function ShowAchievements(msg, editbox)
         text:SetText(output)
         frame:Show()
     else
+        local wqlist = {51173}
+        local questID = 0
+        for i = 1, #wqlist do
+            questID = wqlist[i]
+            if IsWorldQuestActive(questID) then
+                print("The world quest is currently active! " .. questID)
+            else
+                print("The world quest is not active." .. questID)
+            end
+        end
+
+        
         -- World Awoken
-        local achievementID = 16490
+        -- local achievementID = 16490
         -- Uldir  Glory
         -- local achievementID = 12806
-        AchievementCriteria(achievementID, 0)
+        -- AchievementCriteria(achievementID, 0)
     end    
 end
 
@@ -140,6 +164,9 @@ end
 local function HideFrame()
     frame:Hide()
 end
+
+
+
 
 -- Slash commands to run the functions
 SLASH_MCT1 = "/mct" -- Show achievements
