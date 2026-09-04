@@ -77,6 +77,90 @@ closeButton:SetScript("OnClick", function()
 end)
 
 ---------------------------------------------------------------------------
+-- 2.5 Wowhead URL Copy Dialog
+---------------------------------------------------------------------------
+local copyPopup = CreateFrame("Frame", "MCT_CopyURLDialog", UIParent, "BackdropTemplate")
+copyPopup:SetSize(440, 130)
+copyPopup:SetPoint("CENTER", UIParent, "CENTER", 0, 60)
+copyPopup:SetFrameStrata("DIALOG")
+copyPopup:SetBackdrop({
+    bgFile = "Interface\\Buttons\\WHITE8X8",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = false,
+    edgeSize = 16,
+    insets = { left = 4, right = 4, top = 4, bottom = 4 },
+})
+copyPopup:SetBackdropColor(0.08, 0.09, 0.12, 0.98)
+copyPopup:SetBackdropBorderColor(0.2, 0.6, 1.0, 0.9)
+copyPopup:EnableMouse(true)
+copyPopup:Hide()
+tinsert(UISpecialFrames, "MCT_CopyURLDialog")
+
+local popupTitle = copyPopup:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+popupTitle:SetPoint("TOPLEFT", 14, -14)
+popupTitle:SetPoint("TOPRIGHT", -30, -14)
+popupTitle:SetJustifyH("LEFT")
+popupTitle:SetWordWrap(false)
+popupTitle:SetText("Wowhead Link")
+
+local popupSubtitle = copyPopup:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+popupSubtitle:SetPoint("TOPLEFT", popupTitle, "BOTTOMLEFT", 0, -6)
+popupSubtitle:SetText("Press |cFF00FF00Ctrl+C|r to copy, then paste into your web browser:")
+
+local popupEditBox = CreateFrame("EditBox", nil, copyPopup, "InputBoxTemplate")
+popupEditBox:SetSize(400, 22)
+popupEditBox:SetPoint("TOPLEFT", popupSubtitle, "BOTTOMLEFT", 4, -8)
+popupEditBox:SetAutoFocus(true)
+popupEditBox:SetScript("OnEscapePressed", function() copyPopup:Hide() end)
+popupEditBox:SetScript("OnEnterPressed", function() copyPopup:Hide() end)
+popupEditBox:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
+
+local popupCloseBtn = CreateFrame("Button", nil, copyPopup, "UIPanelButtonTemplate")
+popupCloseBtn:SetSize(80, 22)
+popupCloseBtn:SetPoint("BOTTOM", 0, 10)
+popupCloseBtn:SetText("Done")
+popupCloseBtn:SetNormalFontObject("GameFontNormalSmall")
+popupCloseBtn:SetScript("OnClick", function() copyPopup:Hide() end)
+
+local popupXBtn = CreateFrame("Button", nil, copyPopup, "UIPanelCloseButton")
+popupXBtn:SetPoint("TOPRIGHT", -2, -2)
+popupXBtn:SetScript("OnClick", function() copyPopup:Hide() end)
+
+function MCT.ShowWowheadURL(data, parentID)
+    local url = nil
+    local title = "Achievement"
+
+    if data and data.id then
+        url = "https://www.wowhead.com/achievement=" .. data.id
+        title = data.name or ("Achievement #" .. data.id)
+    elseif data and data.assetID and data.criteriaType == 27 then
+        url = "https://www.wowhead.com/quest=" .. data.assetID
+        title = (data.criteriaString and data.criteriaString ~= "" and data.criteriaString) or ("Quest #" .. data.assetID)
+    elseif data and data.assetID and data.criteriaType == 0 then
+        url = "https://www.wowhead.com/npc=" .. data.assetID
+        title = (data.criteriaString and data.criteriaString ~= "" and data.criteriaString) or ("NPC #" .. data.assetID)
+    elseif parentID then
+        url = "https://www.wowhead.com/achievement=" .. parentID
+        local pData = MCT.Engine.GetAchievementData(parentID)
+        title = (pData and pData.name) or ("Achievement #" .. parentID)
+        if data and data.criteriaString and data.criteriaString ~= "" then
+            title = data.criteriaString .. " (" .. title .. ")"
+        end
+    end
+
+    if not url then return end
+
+    popupTitle:SetText("|cFF00BFFFWowhead Link:|r " .. title)
+    popupEditBox:SetText(url)
+    copyPopup:Show()
+    popupEditBox:SetFocus()
+    popupEditBox:HighlightText()
+
+    print("|cFF00A6FFMCT Wowhead URL:|r " .. title .. " - |cFF33BBFF" .. url .. "|r")
+end
+
+
+---------------------------------------------------------------------------
 -- 3. Preset Selector Bar
 ---------------------------------------------------------------------------
 local presetBar = CreateFrame("Frame", nil, mainFrame)
@@ -270,9 +354,15 @@ progressText:SetPoint("CENTER", progressBar, "CENTER", 0, 0)
 progressText:SetText("0 / 0 (0%)")
 
 headerCard:EnableMouse(true)
-headerCard:SetScript("OnMouseUp", function()
-    if currentMetaID then
-        MCT.Engine.OpenAchievement(currentMetaID)
+headerCard:SetScript("OnMouseUp", function(self, button)
+    if button == "RightButton" then
+        if currentMetaID then
+            MCT.ShowWowheadURL({ id = currentMetaID, name = metaTitle:GetText() })
+        end
+    else
+        if currentMetaID then
+            MCT.Engine.OpenAchievement(currentMetaID)
+        end
     end
 end)
 headerCard:SetScript("OnEnter", function(self)
@@ -281,6 +371,7 @@ headerCard:SetScript("OnEnter", function(self)
         GameTooltip:SetHyperlink(GetAchievementLink(currentMetaID) or ("achievement:" .. currentMetaID))
         GameTooltip:AddLine(" ")
         GameTooltip:AddLine("|cFF00FF00Left-Click|r: View in Achievement UI", 0.7, 0.7, 0.7)
+        GameTooltip:AddLine("|cFF00FF00Right-Click|r: Copy Wowhead Link", 0.7, 0.7, 0.7)
         GameTooltip:Show()
     end
 end)
@@ -387,6 +478,7 @@ local function AcquireRow()
                 GameTooltip:SetHyperlink(GetAchievementLink(self.data.id) or ("achievement:" .. self.data.id))
                 GameTooltip:AddLine(" ")
                 GameTooltip:AddLine("|cFF00FF00Left-Click|r: View in Achievement UI", 0.7, 0.7, 0.7)
+                GameTooltip:AddLine("|cFF00FF00Right-Click|r: Copy Wowhead Link", 0.7, 0.7, 0.7)
                 GameTooltip:AddLine("|cFF00FF00Shift-Click|r: Toggle Native Tracking", 0.7, 0.7, 0.7)
                 GameTooltip:Show()
             elseif self.data and self.data.criteriaString then
@@ -395,6 +487,8 @@ local function AcquireRow()
                 if self.data.quantityString and self.data.quantityString ~= "" then
                     GameTooltip:AddLine("Progress: " .. self.data.quantityString, 1, 1, 1)
                 end
+                GameTooltip:AddLine(" ")
+                GameTooltip:AddLine("|cFF00FF00Right-Click|r: Copy Wowhead Link", 0.7, 0.7, 0.7)
                 GameTooltip:Show()
             end
         end)
@@ -404,7 +498,9 @@ local function AcquireRow()
 
         row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
         row:SetScript("OnClick", function(self, button)
-            if IsShiftKeyDown() then
+            if button == "RightButton" then
+                MCT.ShowWowheadURL(self.data, self.parentID)
+            elseif IsShiftKeyDown() then
                 if self.data and self.data.id then
                     MCT.Engine.ToggleTrackAchievement(self.data.id)
                     MCT.RefreshDisplay()
