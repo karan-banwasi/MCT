@@ -1,10 +1,10 @@
-## Interface: 110005
-## Title: MetaCompletionTracker
-## Notes: Track Completion towards Meta acheives
+## Interface: 120100
+## Title: |cFF00A6FFMetaCompletionTracker|r
+## Notes: Track progress and missing requirements for expansion-wide and custom meta-achievements.
 ## Author: Egepi, Toddish
-## Version: 1.0.0
-## RequiredDeps:
-## X-Curse-Project-ID: 999999
-## SavedVariables:
-## SavedVariablesPerCharacter:
+## Version: 2.0.0
+## SavedVariables: MCT_DB
+
+Presets.lua
+AchievementEngine.lua
 MCT.lua
