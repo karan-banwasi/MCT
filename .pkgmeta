@@ -1,0 +1,9 @@
+package-as: MetaCompletionTracker
+enable-nolib-creation: no
+
+ignore:
+  - .github
+  - .gitignore
+  - move.ps1
+  - MCT_Logo.png
+  - README.md

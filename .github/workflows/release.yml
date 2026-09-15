@@ -1,0 +1,74 @@
+name: Release Addon
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version tag (e.g. v2.0.0)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine Version
+        id: get_version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+          else
+            TOC_VERSION=$(grep -i '^## Version:' MetaCompletionTracker.toc | awk '{print $3}' | tr -d '\r')
+            if [ -n "$TOC_VERSION" ]; then
+              VERSION="v${TOC_VERSION}"
+            else
+              VERSION="v2.0.0"
+            fi
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Target version: $VERSION"
+
+      - name: Package Addon Zip
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          STAGING_DIR="staging/MetaCompletionTracker"
+          mkdir -p "$STAGING_DIR"
+
+          # Copy addon files into the MetaCompletionTracker folder
+          cp MetaCompletionTracker.toc "$STAGING_DIR/"
+          cp Presets.lua "$STAGING_DIR/"
+          cp AchievementEngine.lua "$STAGING_DIR/"
+          cp MCT.lua "$STAGING_DIR/"
+
+          # Package into zip with MetaCompletionTracker as root folder
+          cd staging
+          ZIP_NAME="MetaCompletionTracker-${VERSION}.zip"
+          zip -r "../${ZIP_NAME}" MetaCompletionTracker
+          cd ..
+
+          echo "ZIP_NAME=${ZIP_NAME}" >> $GITHUB_ENV
+          echo "Generated Archive: ${ZIP_NAME}"
+          unzip -l "${ZIP_NAME}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get_version.outputs.VERSION }}
+          name: ${{ steps.get_version.outputs.VERSION }}
+          files: ${{ env.ZIP_NAME }}
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(steps.get_version.outputs.VERSION, 'alpha') || contains(steps.get_version.outputs.VERSION, 'beta') }}
