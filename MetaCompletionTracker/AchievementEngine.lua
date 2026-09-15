@@ -8,7 +8,32 @@ local achievementCache = {}
 
 -- Safe retrieval of achievement info with fallback defaults
 function MCT.Engine.GetAchievementData(achievementID)
-    if not achievementID or achievementID <= 0 then
+    if not achievementID then
+        return nil
+    end
+    if type(achievementID) == "number" and achievementID <= 0 then
+        return nil
+    end
+
+    if MCT.Presets then
+        for _, p in ipairs(MCT.Presets) do
+            if p.id == achievementID and p.achievements then
+                return {
+                    id = achievementID,
+                    name = p.name,
+                    points = 0,
+                    completed = false,
+                    wasEarnedByMe = false,
+                    description = p.description or "",
+                    icon = p.icon or 5342938,
+                    rewardText = p.reward or "",
+                    isLoaded = true,
+                }
+            end
+        end
+    end
+
+    if type(achievementID) ~= "number" then
         return nil
     end
 
@@ -64,6 +89,73 @@ function MCT.Engine.GetCriteriaTree(achievementID, maxDepth, currentDepth, visit
 
     if visited[achievementID] then
         return nil
+    end
+
+    local customPreset = nil
+    if MCT.Presets then
+        for _, p in ipairs(MCT.Presets) do
+            if p.id == achievementID and p.achievements then
+                customPreset = p
+                break
+            end
+        end
+    end
+
+    if customPreset then
+        local tree = {
+            id = achievementID,
+            data = MCT.Engine.GetAchievementData(achievementID),
+            criteria = {},
+            totalCriteria = #customPreset.achievements,
+            completedCriteria = 0,
+            percent = 0,
+        }
+
+        for i, subAchID in ipairs(customPreset.achievements) do
+            local subData = MCT.Engine.GetAchievementData(subAchID)
+            local isSubComplete = (subData and subData.completed) or false
+            if isSubComplete then
+                tree.completedCriteria = tree.completedCriteria + 1
+            end
+
+            local nextVisited = {}
+            for k, v in pairs(visited) do nextVisited[k] = v end
+            nextVisited[achievementID] = true
+
+            local subTree = nil
+            if currentDepth < maxDepth then
+                subTree = MCT.Engine.GetCriteriaTree(subAchID, maxDepth, currentDepth + 1, nextVisited)
+            end
+
+            local item = {
+                index = i,
+                criteriaID = subAchID,
+                criteriaString = (subData and subData.name) or ("Achievement #" .. tostring(subAchID)),
+                criteriaType = 8,
+                completed = isSubComplete,
+                quantity = isSubComplete and 1 or 0,
+                reqQuantity = 1,
+                assetID = subAchID,
+                depth = currentDepth,
+                isSubAchievement = true,
+                subAchievementData = subData,
+                subTree = subTree,
+            }
+
+            table.insert(tree.criteria, item)
+        end
+
+        if tree.totalCriteria > 0 then
+            tree.percent = math.floor((tree.completedCriteria / tree.totalCriteria) * 100)
+        else
+            tree.percent = 0
+        end
+
+        if tree.data then
+            tree.data.completed = (tree.totalCriteria > 0 and tree.completedCriteria == tree.totalCriteria)
+        end
+
+        return tree
     end
 
     local achData = MCT.Engine.GetAchievementData(achievementID)
@@ -136,7 +228,7 @@ end
 
 -- Check if an achievement is tracked in native Objective Tracker
 function MCT.Engine.IsTracked(achievementID)
-    if not achievementID then return false end
+    if not achievementID or type(achievementID) ~= "number" then return false end
 
     -- Modern Retail 11.x Content Tracking API
     if C_ContentTracking and C_ContentTracking.GetTrackedIDs and Enum and Enum.ContentTrackingType then
@@ -161,7 +253,7 @@ end
 
 -- Toggle native Objective Tracker tracking for an achievement
 function MCT.Engine.ToggleTrackAchievement(achievementID)
-    if not achievementID then return end
+    if not achievementID or type(achievementID) ~= "number" then return end
 
     local isTracked = MCT.Engine.IsTracked(achievementID)
 
@@ -186,7 +278,7 @@ end
 
 -- Open achievement in native Blizzard UI safely
 function MCT.Engine.OpenAchievement(achievementID)
-    if not achievementID or achievementID <= 0 then return end
+    if not achievementID or type(achievementID) ~= "number" or achievementID <= 0 then return end
 
     -- Modern Retail 10.x/11.x standard utility function
     if OpenAchievementFrameToAchievement then

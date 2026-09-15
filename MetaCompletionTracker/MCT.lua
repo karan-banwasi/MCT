@@ -168,50 +168,47 @@ presetBar:SetHeight(30)
 presetBar:SetPoint("TOPLEFT", titleBar, "BOTTOMLEFT", 0, -4)
 presetBar:SetPoint("TOPRIGHT", titleBar, "BOTTOMRIGHT", 0, -4)
 
-local presetButtons = {}
-local presetWidth = 58
-local presetSpacing = 4
-
-for i, preset in ipairs(MCT.Presets) do
-    if i <= 8 then
-        local btn = CreateFrame("Button", nil, presetBar, "UIPanelButtonTemplate")
-        btn:SetSize(presetWidth, 24)
-        btn:SetPoint("LEFT", (i - 1) * (presetWidth + presetSpacing) + 4, 0)
-        
-        local shortNames = {
-            [40953] = "BfA",
-            [19458] = "Dragon",
-            [20501] = "Shadow",
-            [40537] = "Khaz",
-            [13541] = "Mecha",
-            [13638] = "Nazjatar",
-            [13517] = "2-Sides",
-            [2144]  = "World",
-        }
-        btn:SetText(shortNames[preset.id] or "Meta")
-        btn:SetNormalFontObject("GameFontNormalSmall")
-        btn:SetHighlightFontObject("GameFontHighlightSmall")
-        
-        btn:SetScript("OnClick", function()
-            MCT.SelectAchievement(preset.id)
-        end)
-        
-        btn:SetScript("OnEnter", function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_TOP")
-            GameTooltip:AddLine(preset.name, 1, 0.82, 0)
-            GameTooltip:AddLine(preset.expansion .. " (" .. preset.category .. ")", 0.7, 0.7, 0.7)
-            if preset.reward and preset.reward ~= "" then
-                GameTooltip:AddLine("Reward: " .. preset.reward, 0, 1, 0.8)
-            end
-            GameTooltip:AddLine(preset.description, 1, 1, 1, true)
-            GameTooltip:Show()
-        end)
-        btn:SetScript("OnLeave", function()
-            GameTooltip:Hide()
-        end)
-        
-        presetButtons[preset.id] = btn
+local barPresets = {}
+for _, preset in ipairs(MCT.Presets) do
+    if preset.shortName then
+        table.insert(barPresets, preset)
     end
+end
+
+local presetButtons = {}
+local numPresets = #barPresets
+local presetSpacing = 3
+local totalBarWidth = 504
+local presetWidth = math.floor((totalBarWidth - (numPresets - 1) * presetSpacing) / numPresets)
+
+for i, preset in ipairs(barPresets) do
+    local btn = CreateFrame("Button", nil, presetBar, "UIPanelButtonTemplate")
+    btn:SetSize(presetWidth, 24)
+    btn:SetPoint("LEFT", (i - 1) * (presetWidth + presetSpacing) + 4, 0)
+    
+    btn:SetText(preset.shortName or "Meta")
+    btn:SetNormalFontObject("GameFontNormalSmall")
+    btn:SetHighlightFontObject("GameFontHighlightSmall")
+    
+    btn:SetScript("OnClick", function()
+        MCT.SelectAchievement(preset.id)
+    end)
+    
+    btn:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:AddLine(preset.name, 1, 0.82, 0)
+        GameTooltip:AddLine(preset.expansion .. " (" .. preset.category .. ")", 0.7, 0.7, 0.7)
+        if preset.reward and preset.reward ~= "" then
+            GameTooltip:AddLine("Reward: " .. preset.reward, 0, 1, 0.8)
+        end
+        GameTooltip:AddLine(preset.description, 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    btn:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    
+    presetButtons[preset.id] = btn
 end
 
 ---------------------------------------------------------------------------
@@ -356,23 +353,43 @@ progressText:SetText("0 / 0 (0%)")
 headerCard:EnableMouse(true)
 headerCard:SetScript("OnMouseUp", function(self, button)
     if button == "RightButton" then
-        if currentMetaID then
+        if currentMetaID and type(currentMetaID) == "number" then
             MCT.ShowWowheadURL({ id = currentMetaID, name = metaTitle:GetText() })
         end
     else
-        if currentMetaID then
+        if currentMetaID and type(currentMetaID) == "number" then
             MCT.Engine.OpenAchievement(currentMetaID)
         end
     end
 end)
 headerCard:SetScript("OnEnter", function(self)
     if currentMetaID then
-        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-        GameTooltip:SetHyperlink(GetAchievementLink(currentMetaID) or ("achievement:" .. currentMetaID))
-        GameTooltip:AddLine(" ")
-        GameTooltip:AddLine("|cFF00FF00Left-Click|r: View in Achievement UI", 0.7, 0.7, 0.7)
-        GameTooltip:AddLine("|cFF00FF00Right-Click|r: Copy Wowhead Link", 0.7, 0.7, 0.7)
-        GameTooltip:Show()
+        if type(currentMetaID) == "number" then
+            GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+            GameTooltip:SetHyperlink(GetAchievementLink(currentMetaID) or ("achievement:" .. currentMetaID))
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("|cFF00FF00Left-Click|r: View in Achievement UI", 0.7, 0.7, 0.7)
+            GameTooltip:AddLine("|cFF00FF00Right-Click|r: Copy Wowhead Link", 0.7, 0.7, 0.7)
+            GameTooltip:Show()
+        else
+            local activePreset = nil
+            for _, p in ipairs(MCT.Presets) do
+                if p.id == currentMetaID then
+                    activePreset = p
+                    break
+                end
+            end
+            if activePreset then
+                GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+                GameTooltip:AddLine(activePreset.name, 1, 0.82, 0)
+                GameTooltip:AddLine(activePreset.expansion .. " (" .. activePreset.category .. ")", 0.7, 0.7, 0.7)
+                if activePreset.reward and activePreset.reward ~= "" then
+                    GameTooltip:AddLine("Reward: " .. activePreset.reward, 0, 1, 0.8)
+                end
+                GameTooltip:AddLine(activePreset.description, 1, 1, 1, true)
+                GameTooltip:Show()
+            end
+        end
     end
 end)
 headerCard:SetScript("OnLeave", function()
@@ -702,7 +719,8 @@ end
 -- 8. Select and Load Meta Achievement
 ---------------------------------------------------------------------------
 function MCT.SelectAchievement(achievementID)
-    if not achievementID or achievementID <= 0 then return end
+    if not achievementID then return end
+    if type(achievementID) == "number" and achievementID <= 0 then return end
     currentMetaID = achievementID
     MCT_DB.selectedPresetID = achievementID
 
@@ -723,15 +741,27 @@ function MCT.SelectAchievement(achievementID)
 
     -- Update Header Card
     metaIcon:SetTexture(metaData.icon or 134400)
-    metaTitle:SetText(metaData.name or ("Achievement #" .. achievementID))
 
-    local presetReward = nil
+    local activePreset = nil
     for _, p in ipairs(MCT.Presets) do
         if p.id == achievementID then
-            presetReward = p.reward
+            activePreset = p
             break
         end
     end
+
+    local displayTitle = metaData.name or ("Achievement #" .. achievementID)
+    if activePreset and (activePreset.category == "Expansion Super-Meta" or activePreset.category == "Expansion Meta") then
+        local rawName = (metaData.isLoaded and metaData.name) or activePreset.name or metaData.name
+        if rawName and not rawName:find(activePreset.expansion, 1, true) then
+            displayTitle = activePreset.expansion .. ": " .. rawName
+        else
+            displayTitle = rawName or activePreset.expansion
+        end
+    end
+    metaTitle:SetText(displayTitle)
+
+    local presetReward = activePreset and activePreset.reward
 
     local rewardStr = presetReward or metaData.rewardText
     if rewardStr and rewardStr ~= "" then

@@ -4,7 +4,8 @@ local addonName, MCT = ...
 MCT.Presets = {
     {
         id = 40953,
-        name = "A Farewell to Arms",
+        name = "Battle for Azeroth: A Farewell to Arms",
+        shortName = "BfA",
         expansion = "Battle for Azeroth",
         category = "Expansion Super-Meta",
         reward = "Jani's Trashpile (Mount)",
@@ -13,7 +14,8 @@ MCT.Presets = {
     },
     {
         id = 19458,
-        name = "A World Awoken",
+        name = "Dragonflight: A World Awoken",
+        shortName = "DF",
         expansion = "Dragonflight",
         category = "Expansion Super-Meta",
         reward = "Taivan (Mount)",
@@ -22,7 +24,8 @@ MCT.Presets = {
     },
     {
         id = 20501,
-        name = "Back from the Beyond",
+        name = "Shadowlands: Back from the Beyond",
+        shortName = "SL",
         expansion = "Shadowlands",
         category = "Expansion Super-Meta",
         reward = "Zovaal's Shadebeast Collar (Mount)",
@@ -31,7 +34,8 @@ MCT.Presets = {
     },
     {
         id = 40537,
-        name = "Khaz Algar Diplomat",
+        name = "The War Within: Khaz Algar Diplomat",
+        shortName = "TWW",
         expansion = "The War Within",
         category = "Expansion Meta",
         reward = "Renown Progress",
@@ -39,8 +43,29 @@ MCT.Presets = {
         description = "Attain maximum renown with the primary factions of Khaz Algar.",
     },
     {
+        id = 62386,
+        name = "Midnight: Light Up the Night",
+        shortName = "MID",
+        expansion = "Midnight",
+        category = "Expansion Super-Meta",
+        reward = "Brilliant Petalwing (Mount)",
+        icon = 5342938,
+        description = "Complete all major Midnight zone meta-achievements across Eversong Woods, Zul'Aman, Harandar, and Voidstorm.",
+    },
+    {
+        id = 63630,
+        name = "Assault the Vault",
+        shortName = "Vault",
+        expansion = "Midnight",
+        category = "Zone Super-Meta",
+        reward = "Venomous Coiler (Mount)",
+        icon = 5342938,
+        description = "Complete all outdoor activities and meta-achievements within the Vaults of Atal'Utek on the Coiled Isle.",
+    },
+    {
         id = 13541,
         name = "Mecha-Done",
+        shortName = "Mecha",
         expansion = "Battle for Azeroth",
         category = "Zone Super-Meta",
         reward = "Keys to the Model W (Mount)",
@@ -50,6 +75,7 @@ MCT.Presets = {
     {
         id = 13638,
         name = "Undersea Usurper",
+        shortName = "Nazjatar",
         expansion = "Battle for Azeroth",
         category = "Zone Super-Meta",
         reward = "Snapback Scuttler (Mount)",
@@ -59,6 +85,7 @@ MCT.Presets = {
     {
         id = 13517,
         name = "Two Sides to Every Tale",
+        shortName = "2-Sides",
         expansion = "Battle for Azeroth",
         category = "Faction Campaign",
         reward = "Bloodflank Charger & Ironclad Frostclaw (Mounts)",
@@ -68,6 +95,7 @@ MCT.Presets = {
     {
         id = 2144,
         name = "What a Long, Strange Trip It's Been",
+        shortName = "World",
         expansion = "World Events",
         category = "Holiday Super-Meta",
         reward = "Reins of the Violet Proto-Drake (310% Mount)",
