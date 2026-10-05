@@ -68,7 +68,7 @@ titleText:SetText("|cFF00BFFFMetaCompletionTracker|r")
 
 local versionText = titleBar:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
 versionText:SetPoint("LEFT", titleText, "RIGHT", 6)
-versionText:SetText("v2.0")
+versionText:SetText("v2.1")
 
 local closeButton = CreateFrame("Button", nil, mainFrame, "UIPanelCloseButton")
 closeButton:SetPoint("TOPRIGHT", mainFrame, "TOPRIGHT", -2, -2)
@@ -130,7 +130,10 @@ function MCT.ShowWowheadURL(data, parentID)
     local url = nil
     local title = "Achievement"
 
-    if data and data.id then
+    if data and data.questID then
+        url = "https://www.wowhead.com/quest=" .. data.questID
+        title = data.title or data.name or ("Quest #" .. data.questID)
+    elseif data and data.id then
         url = "https://www.wowhead.com/achievement=" .. data.id
         title = data.name or ("Achievement #" .. data.id)
     elseif data and data.assetID and data.criteriaType == 27 then
@@ -161,54 +164,193 @@ end
 
 
 ---------------------------------------------------------------------------
--- 3. Preset Selector Bar
+-- 3. Expansion Level Headers & Achievement Sub-Headings
 ---------------------------------------------------------------------------
-local presetBar = CreateFrame("Frame", nil, mainFrame)
-presetBar:SetHeight(30)
-presetBar:SetPoint("TOPLEFT", titleBar, "BOTTOMLEFT", 0, -4)
-presetBar:SetPoint("TOPRIGHT", titleBar, "BOTTOMRIGHT", 0, -4)
+local currentExpansionKey = "BfA"
+local expansionButtons = {}
+local subHeadingButtons = {}
+local lastPresetByExpansion = {}
 
-local barPresets = {}
-for _, preset in ipairs(MCT.Presets) do
-    if preset.shortName then
-        table.insert(barPresets, preset)
+-- Top-Level Expansion Headers Bar
+local expansionBar = CreateFrame("Frame", nil, mainFrame)
+expansionBar:SetHeight(26)
+expansionBar:SetPoint("TOPLEFT", titleBar, "BOTTOMLEFT", 0, -4)
+expansionBar:SetPoint("TOPRIGHT", titleBar, "BOTTOMRIGHT", 0, -4)
+
+-- Sub-Headings Bar (Achievements for the selected expansion)
+local subPresetBar = CreateFrame("Frame", nil, mainFrame)
+subPresetBar:SetHeight(24)
+subPresetBar:SetPoint("TOPLEFT", expansionBar, "BOTTOMLEFT", 0, -3)
+subPresetBar:SetPoint("TOPRIGHT", expansionBar, "BOTTOMRIGHT", 0, -3)
+
+local function UpdatePresetNavigation(targetAchID)
+    -- 1. Highlight active expansion button
+    for _, btn in ipairs(expansionButtons) do
+        if btn.expansionKey == currentExpansionKey then
+            btn:SetBackdropColor(0.16, 0.20, 0.28, 0.98)
+            btn:SetBackdropBorderColor(1.0, 0.82, 0.0, 1.0)
+            btn.text:SetTextColor(1.0, 0.82, 0.0)
+        else
+            btn:SetBackdropColor(0.08, 0.09, 0.12, 0.85)
+            btn:SetBackdropBorderColor(0.25, 0.30, 0.40, 0.6)
+            btn.text:SetTextColor(0.80, 0.80, 0.80)
+        end
+    end
+
+    -- 2. Populate and layout sub-heading buttons for current expansion
+    local expPresets = {}
+    if MCT.Presets then
+        for _, p in ipairs(MCT.Presets) do
+            if p.expansionKey == currentExpansionKey then
+                table.insert(expPresets, p)
+            end
+        end
+    end
+
+    for _, btn in ipairs(subHeadingButtons) do
+        btn:Hide()
+    end
+
+    local numSub = #expPresets
+    if numSub == 0 then return end
+
+    local spacing = 4
+    local totalWidth = 504
+    local btnWidth = math.floor((totalWidth - (numSub - 1) * spacing) / numSub)
+
+    for i, p in ipairs(expPresets) do
+        local btn = subHeadingButtons[i]
+        if not btn then
+            btn = CreateFrame("Button", nil, subPresetBar, "BackdropTemplate")
+            btn:SetHeight(22)
+            btn:SetBackdrop({
+                bgFile = "Interface\\Buttons\\WHITE8X8",
+                edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+                tile = false,
+                edgeSize = 8,
+                insets = { left = 2, right = 2, top = 2, bottom = 2 },
+            })
+
+            local btnText = btn:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+            btnText:SetPoint("CENTER", 0, 0)
+            btnText:SetPoint("LEFT", 4, 0)
+            btnText:SetPoint("RIGHT", -4, 0)
+            btnText:SetJustifyH("CENTER")
+            btnText:SetWordWrap(false)
+            btn.text = btnText
+
+            btn:SetScript("OnClick", function(self)
+                if self.presetID then
+                    MCT.SelectAchievement(self.presetID)
+                end
+            end)
+
+            btn:SetScript("OnEnter", function(self)
+                local pData = self.preset
+                if not pData then return end
+                GameTooltip:SetOwner(self, "ANCHOR_TOP")
+                GameTooltip:AddLine(pData.name, 1, 0.82, 0)
+                GameTooltip:AddLine(pData.expansion .. " (" .. pData.category .. ")", 0.7, 0.7, 0.7)
+                if pData.reward and pData.reward ~= "" then
+                    GameTooltip:AddLine("Reward: " .. pData.reward, 0, 1, 0.8)
+                end
+                GameTooltip:AddLine(pData.description, 1, 1, 1, true)
+                GameTooltip:Show()
+            end)
+            btn:SetScript("OnLeave", function()
+                GameTooltip:Hide()
+            end)
+
+            table.insert(subHeadingButtons, btn)
+        end
+
+        btn:SetSize(btnWidth, 22)
+        btn:ClearAllPoints()
+        btn:SetPoint("LEFT", (i - 1) * (btnWidth + spacing) + 4, 0)
+        btn.preset = p
+        btn.presetID = p.id
+        btn.text:SetText(p.subHeading or p.shortName or p.name)
+
+        if p.id == targetAchID then
+            btn:SetBackdropColor(0.12, 0.18, 0.26, 0.98)
+            btn:SetBackdropBorderColor(0.1, 0.85, 0.95, 1.0)
+            btn.text:SetTextColor(0.1, 0.9, 1.0)
+        else
+            btn:SetBackdropColor(0.06, 0.08, 0.11, 0.8)
+            btn:SetBackdropBorderColor(0.2, 0.25, 0.35, 0.5)
+            btn.text:SetTextColor(0.75, 0.75, 0.75)
+        end
+
+        btn:Show()
     end
 end
 
-local presetButtons = {}
-local numPresets = #barPresets
-local presetSpacing = 3
-local totalBarWidth = 504
-local presetWidth = math.floor((totalBarWidth - (numPresets - 1) * presetSpacing) / numPresets)
+-- Create Expansion Buttons
+local numExp = MCT.Expansions and #MCT.Expansions or 0
+local expSpacing = 4
+local totalExpWidth = 504
+local expWidth = numExp > 0 and math.floor((totalExpWidth - (numExp - 1) * expSpacing) / numExp) or 80
 
-for i, preset in ipairs(barPresets) do
-    local btn = CreateFrame("Button", nil, presetBar, "UIPanelButtonTemplate")
-    btn:SetSize(presetWidth, 24)
-    btn:SetPoint("LEFT", (i - 1) * (presetWidth + presetSpacing) + 4, 0)
-    
-    btn:SetText(preset.shortName or "Meta")
-    btn:SetNormalFontObject("GameFontNormalSmall")
-    btn:SetHighlightFontObject("GameFontHighlightSmall")
-    
-    btn:SetScript("OnClick", function()
-        MCT.SelectAchievement(preset.id)
-    end)
-    
-    btn:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
-        GameTooltip:AddLine(preset.name, 1, 0.82, 0)
-        GameTooltip:AddLine(preset.expansion .. " (" .. preset.category .. ")", 0.7, 0.7, 0.7)
-        if preset.reward and preset.reward ~= "" then
-            GameTooltip:AddLine("Reward: " .. preset.reward, 0, 1, 0.8)
-        end
-        GameTooltip:AddLine(preset.description, 1, 1, 1, true)
-        GameTooltip:Show()
-    end)
-    btn:SetScript("OnLeave", function()
-        GameTooltip:Hide()
-    end)
-    
-    presetButtons[preset.id] = btn
+if MCT.Expansions then
+    for i, exp in ipairs(MCT.Expansions) do
+        local btn = CreateFrame("Button", nil, expansionBar, "BackdropTemplate")
+        btn:SetSize(expWidth, 24)
+        btn:SetPoint("LEFT", (i - 1) * (expWidth + expSpacing) + 4, 0)
+        btn:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8X8",
+            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+            tile = false,
+            edgeSize = 8,
+            insets = { left = 2, right = 2, top = 2, bottom = 2 },
+        })
+        btn:SetBackdropColor(0.08, 0.09, 0.12, 0.85)
+        btn:SetBackdropBorderColor(0.25, 0.30, 0.40, 0.6)
+
+        local btnText = btn:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+        btnText:SetPoint("CENTER", 0, 0)
+        btnText:SetText(exp.label or exp.name)
+        btnText:SetWordWrap(false)
+        btn.text = btnText
+        btn.expansionKey = exp.key
+
+        btn:SetScript("OnClick", function(self)
+            currentExpansionKey = self.expansionKey
+            local targetID = lastPresetByExpansion[self.expansionKey]
+            if not targetID then
+                for _, p in ipairs(MCT.Presets) do
+                    if p.expansionKey == self.expansionKey then
+                        targetID = p.id
+                        break
+                    end
+                end
+            end
+            if targetID then
+                MCT.SelectAchievement(targetID)
+            else
+                UpdatePresetNavigation(nil)
+            end
+        end)
+
+        btn:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            GameTooltip:AddLine(exp.name, 1, 0.82, 0)
+            GameTooltip:AddLine("Expansion Level Meta Achievements", 0.7, 0.7, 0.7)
+            GameTooltip:AddLine(" ")
+            for _, p in ipairs(MCT.Presets) do
+                if p.expansionKey == exp.key then
+                    GameTooltip:AddLine("• |cFFFFFFFF" .. (p.subHeading or p.name) .. "|r", 0.9, 0.9, 0.9)
+                end
+            end
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("|cFF00FF00Click|r: View " .. exp.name .. " meta achievements", 0.7, 0.7, 0.7)
+            GameTooltip:Show()
+        end)
+        btn:SetScript("OnLeave", function()
+            GameTooltip:Hide()
+        end)
+
+        table.insert(expansionButtons, btn)
+    end
 end
 
 ---------------------------------------------------------------------------
@@ -216,8 +358,8 @@ end
 ---------------------------------------------------------------------------
 local searchBar = CreateFrame("Frame", nil, mainFrame)
 searchBar:SetHeight(26)
-searchBar:SetPoint("TOPLEFT", presetBar, "BOTTOMLEFT", 4, -4)
-searchBar:SetPoint("TOPRIGHT", presetBar, "BOTTOMRIGHT", -4, -4)
+searchBar:SetPoint("TOPLEFT", subPresetBar, "BOTTOMLEFT", 4, -4)
+searchBar:SetPoint("TOPRIGHT", subPresetBar, "BOTTOMRIGHT", -4, -4)
 
 local searchLabel = searchBar:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
 searchLabel:SetPoint("LEFT", 2, 0)
@@ -298,10 +440,99 @@ toggleAllBtn:SetScript("OnClick", function(self)
 end)
 
 ---------------------------------------------------------------------------
+-- 4.5 Active World Quests Alert Bar
+---------------------------------------------------------------------------
+local wqAlertBar = CreateFrame("Button", "MCT_WQAlertBar", mainFrame, "BackdropTemplate")
+wqAlertBar:SetHeight(24)
+wqAlertBar:SetPoint("TOPLEFT", searchBar, "BOTTOMLEFT", 0, -3)
+wqAlertBar:SetPoint("TOPRIGHT", searchBar, "BOTTOMRIGHT", 0, -3)
+wqAlertBar:SetBackdrop({
+    bgFile = "Interface\\Buttons\\WHITE8X8",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = false,
+    edgeSize = 10,
+    insets = { left = 2, right = 2, top = 2, bottom = 2 },
+})
+wqAlertBar:SetBackdropColor(0.04, 0.16, 0.08, 0.95)
+wqAlertBar:SetBackdropBorderColor(0.1, 0.9, 0.35, 0.9)
+wqAlertBar:Hide()
+
+local wqAlertIcon = wqAlertBar:CreateTexture(nil, "ARTWORK")
+wqAlertIcon:SetSize(16, 16)
+wqAlertIcon:SetPoint("LEFT", 6, 0)
+wqAlertIcon:SetTexture("Interface\\QuestFrame\\UI-QuestLog-WorldQuest-Tracker-Icon")
+wqAlertIcon:SetVertexColor(0.2, 1.0, 0.4)
+
+local wqAlertText = wqAlertBar:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+wqAlertText:SetPoint("LEFT", wqAlertIcon, "RIGHT", 6, 0)
+wqAlertText:SetPoint("RIGHT", -6, 0)
+wqAlertText:SetJustifyH("LEFT")
+wqAlertText:SetWordWrap(false)
+wqAlertText:SetText("")
+
+local wqAlertEntries = {}
+local wqAlertAllEntries = {}
+
+wqAlertBar:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+    if wqAlertEntries and #wqAlertEntries > 0 then
+        GameTooltip:AddLine("|cFF00FF00★ Active World Quests for Missing Requirements|r", 1, 1, 1)
+        GameTooltip:AddLine("The following World Quests are currently UP and needed for this meta:", 0.8, 0.8, 0.8)
+        GameTooltip:AddLine(" ")
+        for _, item in ipairs(wqAlertEntries) do
+            local q = item.activeQuest
+            local timeLeft = (q.timeLeftFormatted ~= "" and (" (" .. q.timeLeftFormatted .. ")")) or ""
+            GameTooltip:AddLine("|cFFFFFFFF" .. item.achievementName .. "|r", 1, 0.82, 0)
+            GameTooltip:AddLine("  • World Quest: |cFF00FF00" .. q.title .. "|r in |cFFFFD100" .. q.zoneName .. "|r" .. timeLeft, 0.9, 0.9, 0.9)
+            if q.notes and q.notes ~= "" then
+                GameTooltip:AddLine("    |cFFBBBBBB" .. q.notes .. "|r", 0.7, 0.7, 0.7, true)
+            end
+        end
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("|cFF00FF00Left-Click|r: Expand all sections to reveal active requirements", 0.7, 0.7, 0.7)
+    elseif wqAlertAllEntries and #wqAlertAllEntries > 0 then
+        GameTooltip:AddLine("|cFF00BFFF★ Overall Meta World Quest Requirements|r", 1, 1, 1)
+        GameTooltip:AddLine("The following achievements in this meta require rotating World Quests:", 0.8, 0.8, 0.8)
+        GameTooltip:AddLine(" ")
+        for _, item in ipairs(wqAlertAllEntries) do
+            GameTooltip:AddLine("|cFFFFFFFF" .. item.achievementName .. "|r", 1, 0.82, 0)
+            local statusStr = item.hasActive and "|cFF00FF00● UP NOW|r" or "|cFFFF5555Offline / Inactive|r"
+            GameTooltip:AddLine("  • World Quest: |cFFFFD100" .. item.questName .. "|r in |cFFFFFFFF" .. (item.zoneName or "Unknown") .. "|r - " .. statusStr, 0.9, 0.9, 0.9)
+        end
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("|cFF00FF00Left-Click|r: Expand all sections to reveal World Quest requirements", 0.7, 0.7, 0.7)
+    else
+        return
+    end
+    GameTooltip:Show()
+end)
+wqAlertBar:SetScript("OnLeave", function()
+    GameTooltip:Hide()
+end)
+wqAlertBar:SetScript("OnClick", function()
+    if activeTree and activeTree.criteria then
+        local function ExpandTargets(criteriaList)
+            for _, item in ipairs(criteriaList) do
+                if item.isSubAchievement and item.assetID then
+                    if (item.worldQuestData) or item.hasChildActiveWQ or item.hasChildWQ then
+                        expandedNodes[item.assetID] = true
+                        if item.subTree and item.subTree.criteria then
+                            ExpandTargets(item.subTree.criteria)
+                        end
+                    end
+                end
+            end
+        end
+        ExpandTargets(activeTree.criteria)
+        MCT.RefreshDisplay()
+    end
+end)
+
+---------------------------------------------------------------------------
 -- 5. Meta Achievement Header Banner (Icon, Title, Reward, Progress)
 ---------------------------------------------------------------------------
 local headerCard = CreateFrame("Frame", nil, mainFrame, "BackdropTemplate")
-headerCard:SetHeight(76)
+headerCard:SetHeight(92)
 headerCard:SetPoint("TOPLEFT", searchBar, "BOTTOMLEFT", 0, -6)
 headerCard:SetPoint("TOPRIGHT", searchBar, "BOTTOMRIGHT", 0, -6)
 headerCard:SetBackdrop({
@@ -326,16 +557,131 @@ metaTitle:SetJustifyH("LEFT")
 metaTitle:SetText("Loading...")
 
 local metaReward = headerCard:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-metaReward:SetPoint("TOPLEFT", metaTitle, "BOTTOMLEFT", 0, -3)
+metaReward:SetPoint("TOPLEFT", metaTitle, "BOTTOMLEFT", 0, -2)
 metaReward:SetPoint("RIGHT", headerCard, "RIGHT", -10, 0)
 metaReward:SetJustifyH("LEFT")
 metaReward:SetText("")
 
+-- Header Meta View / Part of Meta Indicator Button
+local metaParentBtn = CreateFrame("Button", nil, headerCard, "BackdropTemplate")
+metaParentBtn:SetHeight(18)
+metaParentBtn:SetPoint("TOPLEFT", metaReward, "BOTTOMLEFT", 0, -2)
+metaParentBtn:SetPoint("RIGHT", headerCard, "RIGHT", -10, 0)
+metaParentBtn:SetBackdrop({
+    bgFile = "Interface\\Buttons\\WHITE8X8",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = false,
+    edgeSize = 8,
+    insets = { left = 2, right = 2, top = 2, bottom = 2 },
+})
+metaParentBtn:Hide()
+
+local metaParentIcon = metaParentBtn:CreateTexture(nil, "ARTWORK")
+metaParentIcon:SetSize(14, 14)
+metaParentIcon:SetPoint("LEFT", 4, 0)
+metaParentIcon:SetTexture("Interface\\Icons\\Achievement_General")
+metaParentBtn.icon = metaParentIcon
+
+local metaParentText = metaParentBtn:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+metaParentText:SetPoint("LEFT", metaParentIcon, "RIGHT", 4, 0)
+metaParentText:SetPoint("RIGHT", -4, 0)
+metaParentText:SetJustifyH("LEFT")
+metaParentBtn.text = metaParentText
+
+metaParentBtn:SetScript("OnClick", function(self)
+    if self.parentPresetID then
+        local targetID = self.targetAchID
+        MCT.SelectAchievement(self.parentPresetID)
+        if targetID then
+            expandedNodes[targetID] = true
+            MCT.RefreshDisplay()
+        end
+    end
+end)
+metaParentBtn:SetScript("OnEnter", function(self)
+    if self.parentPresetID then
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+        GameTooltip:AddLine("|cFF00FFCCPart of Overall Meta Achievement|r", 1, 1, 1)
+        GameTooltip:AddLine("This achievement is a requirement for the overall meta view.", 0.8, 0.8, 0.8)
+        if self.parentMetaPath then
+            GameTooltip:AddLine("Hierarchy: |cFFFFD100" .. self.parentMetaPath .. "|r", 0.9, 0.9, 0.9)
+        end
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("|cFF00FF00Left-Click|r: Switch to overall meta view and reveal this achievement", 0.7, 0.7, 0.7)
+        GameTooltip:Show()
+    end
+end)
+metaParentBtn:SetScript("OnLeave", function()
+    GameTooltip:Hide()
+end)
+
+-- Header World Quest Status Banner
+local metaWQBtn = CreateFrame("Button", nil, headerCard, "BackdropTemplate")
+metaWQBtn:SetHeight(18)
+metaWQBtn:SetPoint("TOPLEFT", metaReward, "BOTTOMLEFT", 0, -2)
+metaWQBtn:SetPoint("RIGHT", headerCard, "RIGHT", -10, 0)
+metaWQBtn:SetBackdrop({
+    bgFile = "Interface\\Buttons\\WHITE8X8",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = false,
+    edgeSize = 8,
+    insets = { left = 2, right = 2, top = 2, bottom = 2 },
+})
+metaWQBtn:Hide()
+
+local metaWQIcon = metaWQBtn:CreateTexture(nil, "ARTWORK")
+metaWQIcon:SetSize(14, 14)
+metaWQIcon:SetPoint("LEFT", 4, 0)
+metaWQIcon:SetTexture("Interface\\QuestFrame\\UI-QuestLog-WorldQuest-Tracker-Icon")
+metaWQBtn.icon = metaWQIcon
+
+local metaWQText = metaWQBtn:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+metaWQText:SetPoint("LEFT", metaWQIcon, "RIGHT", 4, 0)
+metaWQText:SetPoint("RIGHT", -4, 0)
+metaWQText:SetJustifyH("LEFT")
+metaWQBtn.text = metaWQText
+
+metaWQBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+metaWQBtn:SetScript("OnEnter", function(self)
+    local q = self.worldQuest
+    if not q then return end
+    GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+    GameTooltip:AddLine("|cFF00BFFFWorld Quest Requirement|r", 1, 1, 1)
+    local statusStr = q.isActive and ("|cFF00FF00Active Now (" .. (q.timeLeftFormatted ~= "" and q.timeLeftFormatted or "Up") .. ")|r") or (q.isCompleted and "|cFF55AAFFCompleted Today|r" or "|cFFFF5555Offline / Inactive|r")
+    GameTooltip:AddLine(q.title, 1, 0.82, 0)
+    GameTooltip:AddLine("Zone: |cFFFFFFFF" .. (q.zoneName or "Unknown") .. "|r", 0.8, 0.8, 0.8)
+    GameTooltip:AddLine("Status: " .. statusStr, 1, 1, 1)
+    if q.notes and q.notes ~= "" then
+        GameTooltip:AddLine(q.notes, 0.7, 0.7, 0.7, true)
+    end
+    GameTooltip:AddLine(" ")
+    GameTooltip:AddLine("|cFF00FF00Left-Click|r: View Zone on World Map", 0.7, 0.7, 0.7)
+    GameTooltip:AddLine("|cFF00FF00Right-Click|r: Copy Wowhead Quest Link", 0.7, 0.7, 0.7)
+    GameTooltip:AddLine("|cFF00FF00Shift-Click|r: Track World Quest in Objectives", 0.7, 0.7, 0.7)
+    GameTooltip:Show()
+end)
+metaWQBtn:SetScript("OnLeave", function()
+    GameTooltip:Hide()
+end)
+metaWQBtn:SetScript("OnClick", function(self, button)
+    local q = self.worldQuest
+    if not q then return end
+    if button == "RightButton" then
+        MCT.ShowWowheadURL({ questID = q.questID, title = q.title })
+    elseif IsShiftKeyDown() then
+        MCT.Engine.TrackWorldQuest(q.questID)
+    else
+        if q.mapID then
+            MCT.Engine.OpenWorldQuestMap(q.mapID)
+        end
+    end
+end)
+
 -- Progress Bar
 local progressBar = CreateFrame("StatusBar", nil, headerCard)
 progressBar:SetHeight(16)
-progressBar:SetPoint("BOTTOMLEFT", metaIcon, "BOTTOMRIGHT", 10, 2)
-progressBar:SetPoint("BOTTOMRIGHT", headerCard, "BOTTOMRIGHT", -10, 10)
+progressBar:SetPoint("BOTTOMLEFT", headerCard, "BOTTOMLEFT", 72, 8)
+progressBar:SetPoint("BOTTOMRIGHT", headerCard, "BOTTOMRIGHT", -10, 8)
 progressBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
 progressBar:SetStatusBarColor(0.15, 0.55, 0.95)
 progressBar:SetMinMaxValues(0, 100)
@@ -473,9 +819,98 @@ local function AcquireRow()
 
         -- Progress Label (e.g. 14/18)
         local progressLabel = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-        progressLabel:SetPoint("RIGHT", row, "RIGHT", -32, 0)
+        progressLabel:SetPoint("RIGHT", row, "RIGHT", -30, 0)
         progressLabel:SetJustifyH("RIGHT")
         row.progressLabel = progressLabel
+
+        -- World Quest Status Badge Button
+        local wqBadge = CreateFrame("Button", nil, row, "BackdropTemplate")
+        wqBadge:SetSize(86, 18)
+        wqBadge:SetPoint("RIGHT", row, "RIGHT", -80, 0)
+        wqBadge:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8X8",
+            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+            tile = false,
+            edgeSize = 8,
+            insets = { left = 2, right = 2, top = 2, bottom = 2 },
+        })
+        local wqBadgeIcon = wqBadge:CreateTexture(nil, "ARTWORK")
+        wqBadgeIcon:SetSize(12, 12)
+        wqBadgeIcon:SetPoint("LEFT", 3, 0)
+        wqBadgeIcon:SetTexture("Interface\\QuestFrame\\UI-QuestLog-WorldQuest-Tracker-Icon")
+        wqBadge.icon = wqBadgeIcon
+
+        local wqBadgeText = wqBadge:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+        wqBadgeText:SetPoint("LEFT", wqBadgeIcon, "RIGHT", 3, 0)
+        wqBadgeText:SetPoint("RIGHT", -2, 0)
+        wqBadgeText:SetJustifyH("LEFT")
+        wqBadge.text = wqBadgeText
+        row.wqBadge = wqBadge
+
+        wqBadge:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        wqBadge:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            if self.worldQuestData then
+                -- Direct WQ requirement on this achievement
+                GameTooltip:AddLine("|cFF00BFFFWorld Quest Requirement|r", 1, 1, 1)
+                for _, q in ipairs(self.worldQuestData.quests) do
+                    local statusStr = q.isActive and ("|cFF00FF00Active Now (" .. (q.timeLeftFormatted ~= "" and q.timeLeftFormatted or "Up") .. ")|r") or (q.isCompleted and "|cFF55AAFFCompleted Today|r" or "|cFFFF5555Offline / Inactive|r")
+                    GameTooltip:AddLine("• |cFFFFFFFF" .. q.title .. "|r in |cFFFFD100" .. (q.zoneName or "Unknown") .. "|r", 1, 0.82, 0)
+                    GameTooltip:AddLine("  Status: " .. statusStr, 1, 1, 1)
+                    if q.notes and q.notes ~= "" then
+                        GameTooltip:AddLine("  |cFFCCCCCC" .. q.notes .. "|r", 0.8, 0.8, 0.8, true)
+                    end
+                end
+                GameTooltip:AddLine(" ")
+                GameTooltip:AddLine("|cFF00FF00Left-Click|r: View Zone on World Map", 0.7, 0.7, 0.7)
+                GameTooltip:AddLine("|cFF00FF00Right-Click|r: Copy Wowhead Quest Link", 0.7, 0.7, 0.7)
+                GameTooltip:AddLine("|cFF00FF00Shift-Click|r: Track World Quest in Objectives", 0.7, 0.7, 0.7)
+            elseif self.childActiveWQs and #self.childActiveWQs > 0 then
+                -- Parent category in overall meta containing active WQ!
+                GameTooltip:AddLine("|cFF00FF00★ Active World Quest in this category!|r", 1, 1, 1)
+                GameTooltip:AddLine("This meta requirement contains active World Quests:", 0.8, 0.8, 0.8)
+                GameTooltip:AddLine(" ")
+                for _, item in ipairs(self.childActiveWQs) do
+                    local q = item.activeQuest
+                    local t = (q.timeLeftFormatted ~= "" and (" (" .. q.timeLeftFormatted .. ")")) or ""
+                    GameTooltip:AddLine("• |cFFFFD100" .. item.achievementName .. "|r: |cFF00FF00" .. q.title .. "|r in |cFFFFFFFF" .. q.zoneName .. "|r" .. t, 1, 1, 1)
+                end
+                GameTooltip:AddLine(" ")
+                GameTooltip:AddLine("|cFF00FF00Click|r: Expand to view active requirements", 0.7, 0.7, 0.7)
+            elseif self.childAllWQs and #self.childAllWQs > 0 then
+                -- Parent category in overall meta with WQ requirements
+                GameTooltip:AddLine("|cFF00BFFFWorld Quest Requirements in Category|r", 1, 1, 1)
+                for _, item in ipairs(self.childAllWQs) do
+                    GameTooltip:AddLine("• |cFFFFD100" .. item.achievementName .. "|r: " .. item.questName .. " (" .. item.zoneName .. ") - |cFFFF5555Offline|r", 0.8, 0.8, 0.8)
+                end
+                GameTooltip:AddLine(" ")
+                GameTooltip:AddLine("|cFF00FF00Click|r: Expand category", 0.7, 0.7, 0.7)
+            end
+            GameTooltip:Show()
+        end)
+        wqBadge:SetScript("OnLeave", function()
+            GameTooltip:Hide()
+        end)
+        wqBadge:SetScript("OnClick", function(self, button)
+            if self.worldQuestData then
+                local q = self.worldQuestData.activeQuest or self.worldQuestData.firstQuest
+                if not q then return end
+                if button == "RightButton" then
+                    MCT.ShowWowheadURL({ questID = q.questID, title = q.title })
+                elseif IsShiftKeyDown() then
+                    MCT.Engine.TrackWorldQuest(q.questID)
+                else
+                    if q.mapID then
+                        MCT.Engine.OpenWorldQuestMap(q.mapID)
+                    end
+                end
+            elseif (self.childActiveWQs and #self.childActiveWQs > 0) or (self.childAllWQs and #self.childAllWQs > 0) then
+                if self.subData and self.subData.id then
+                    expandedNodes[self.subData.id] = true
+                    MCT.RefreshDisplay()
+                end
+            end
+        end)
 
         -- Native Track Pin Button
         local trackBtn = CreateFrame("Button", nil, row)
@@ -493,6 +928,30 @@ local function AcquireRow()
             if self.data and self.data.id then
                 GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
                 GameTooltip:SetHyperlink(GetAchievementLink(self.data.id) or ("achievement:" .. self.data.id))
+                
+                if self.wqBadge and self.wqBadge.worldQuestData then
+                    local wq = self.wqBadge.worldQuestData
+                    GameTooltip:AddLine(" ")
+                    GameTooltip:AddLine("|cFF00BFFFWorld Quest Required:|r", 1, 1, 1)
+                    for _, q in ipairs(wq.quests) do
+                        local s = q.isActive and ("|cFF00FF00Active Now (" .. (q.timeLeftFormatted ~= "" and q.timeLeftFormatted or "Up") .. ")|r") or (q.isCompleted and "|cFF55AAFFCompleted Today|r" or "|cFFFF5555Offline / Inactive|r")
+                        GameTooltip:AddLine("• |cFFFFFFFF" .. q.title .. "|r in |cFFFFD100" .. (q.zoneName or "Unknown") .. "|r - " .. s, 1, 1, 1)
+                        if q.notes and q.notes ~= "" then
+                            GameTooltip:AddLine("  |cFFCCCCCC" .. q.notes .. "|r", 0.8, 0.8, 0.8, true)
+                        end
+                    end
+                elseif self.wqBadge and self.wqBadge.childActiveWQs and #self.wqBadge.childActiveWQs > 0 then
+                    GameTooltip:AddLine(" ")
+                    GameTooltip:AddLine("|cFF00FF00★ Active World Quest in this category:|r", 1, 1, 1)
+                    for _, item in ipairs(self.wqBadge.childActiveWQs) do
+                        local q = item.activeQuest
+                        local t = (q.timeLeftFormatted ~= "" and (" (" .. q.timeLeftFormatted .. ")")) or ""
+                        GameTooltip:AddLine("• |cFFFFD100" .. item.achievementName .. "|r: |cFF00FF00" .. q.title .. "|r in |cFFFFFFFF" .. q.zoneName .. "|r" .. t, 1, 1, 1)
+                    end
+                    GameTooltip:AddLine(" ")
+                    GameTooltip:AddLine("|cFF00FF00Click [★ WQ UP] badge|r: Expand to view active requirements", 0.7, 0.7, 0.7)
+                end
+
                 GameTooltip:AddLine(" ")
                 GameTooltip:AddLine("|cFF00FF00Left-Click|r: View in Achievement UI", 0.7, 0.7, 0.7)
                 GameTooltip:AddLine("|cFF00FF00Right-Click|r: Copy Wowhead Link", 0.7, 0.7, 0.7)
@@ -504,6 +963,28 @@ local function AcquireRow()
                 if self.data.quantityString and self.data.quantityString ~= "" then
                     GameTooltip:AddLine("Progress: " .. self.data.quantityString, 1, 1, 1)
                 end
+
+                if self.wqBadge and self.wqBadge.worldQuestData then
+                    local wq = self.wqBadge.worldQuestData
+                    GameTooltip:AddLine(" ")
+                    GameTooltip:AddLine("|cFF00BFFFWorld Quest Required:|r", 1, 1, 1)
+                    for _, q in ipairs(wq.quests) do
+                        local s = q.isActive and ("|cFF00FF00Active Now (" .. (q.timeLeftFormatted ~= "" and q.timeLeftFormatted or "Up") .. ")|r") or (q.isCompleted and "|cFF55AAFFCompleted Today|r" or "|cFFFF5555Offline / Inactive|r")
+                        GameTooltip:AddLine("• |cFFFFFFFF" .. q.title .. "|r in |cFFFFD100" .. (q.zoneName or "Unknown") .. "|r - " .. s, 1, 1, 1)
+                    end
+                elseif self.parentID then
+                    local pWq = MCT.Engine.GetAchievementWorldQuests and MCT.Engine.GetAchievementWorldQuests(self.parentID)
+                    if pWq and pWq.firstQuest then
+                        GameTooltip:AddLine(" ")
+                        GameTooltip:AddLine("|cFF00BFFFRequired from World Quest:|r " .. pWq.firstQuest.title .. " (" .. pWq.firstQuest.zoneName .. ")", 1, 0.82, 0)
+                        local sStr = pWq.hasActive and ("|cFF00FF00Active Now (" .. (pWq.activeQuest.timeLeftFormatted ~= "" and pWq.activeQuest.timeLeftFormatted or "Up") .. ")|r") or "|cFFFF5555Offline / Inactive|r"
+                        GameTooltip:AddLine("Status: " .. sStr, 1, 1, 1)
+                        if pWq.firstQuest.notes and pWq.firstQuest.notes ~= "" then
+                            GameTooltip:AddLine(pWq.firstQuest.notes, 0.7, 0.7, 0.7, true)
+                        end
+                    end
+                end
+
                 GameTooltip:AddLine(" ")
                 GameTooltip:AddLine("|cFF00FF00Right-Click|r: Copy Wowhead Link", 0.7, 0.7, 0.7)
                 GameTooltip:Show()
@@ -542,6 +1023,14 @@ local function ReleaseAllRows()
         row:Hide()
         row:ClearAllPoints()
         row.data = nil
+        row.parentID = nil
+        if row.wqBadge then
+            row.wqBadge:Hide()
+            row.wqBadge.worldQuestData = nil
+            row.wqBadge.subData = nil
+            row.wqBadge.childActiveWQs = nil
+            row.wqBadge.childAllWQs = nil
+        end
         table.insert(rowPool, row)
     end
     activeRows = {}
@@ -634,9 +1123,67 @@ function MCT.RefreshDisplay()
             -- Title
             row.nameText:ClearAllPoints()
             row.nameText:SetPoint("LEFT", row, "LEFT", leftOffset + 62, 0)
-            row.nameText:SetPoint("RIGHT", row, "RIGHT", -90, 0)
             local nameColor = subData.completed and "|cFF888888" or "|cFFFFFFFF"
             row.nameText:SetText(nameColor .. (subData.name or ("Achievement #" .. subData.id)) .. "|r")
+
+            -- World Quest Badge Check
+            local wqData = item.worldQuestData
+            if not wqData and item.isSubAchievement and item.subAchievementData then
+                wqData = MCT.Engine.GetAchievementWorldQuests and MCT.Engine.GetAchievementWorldQuests(item.subAchievementData.id)
+            end
+
+            local hasChildActive = item.hasChildActiveWQ or (item.childActiveWQs and #item.childActiveWQs > 0)
+            local hasChildWQ = item.hasChildWQ or (item.childAllWQs and #item.childAllWQs > 0)
+
+            row.wqBadge.worldQuestData = wqData
+            row.wqBadge.subData = subData
+            row.wqBadge.childActiveWQs = item.childActiveWQs
+            row.wqBadge.childAllWQs = item.childAllWQs
+
+            if wqData and not subData.completed then
+                row.wqBadge:Show()
+                if wqData.hasActive and wqData.activeQuest then
+                    local q = wqData.activeQuest
+                    local timeStr = (q.timeLeftFormatted ~= "" and q.timeLeftFormatted) or "UP"
+                    row.wqBadge.text:SetText("|cFF00FF00" .. timeStr .. "|r")
+                    row.wqBadge:SetBackdropColor(0.04, 0.16, 0.08, 0.95)
+                    row.wqBadge:SetBackdropBorderColor(0.1, 0.9, 0.35, 0.9)
+                    row.wqBadge.icon:SetVertexColor(0.2, 1.0, 0.4)
+                elseif wqData.hasCompleted then
+                    row.wqBadge.text:SetText("|cFF55AAFFDone|r")
+                    row.wqBadge:SetBackdropColor(0.06, 0.10, 0.16, 0.9)
+                    row.wqBadge:SetBackdropBorderColor(0.2, 0.5, 0.8, 0.7)
+                    row.wqBadge.icon:SetVertexColor(0.3, 0.7, 1.0)
+                else
+                    local qName = wqData.firstQuest and wqData.firstQuest.title or "WQ"
+                    if #qName > 8 then qName = qName:sub(1, 8) end
+                    row.wqBadge.text:SetText("|cFFFFCC00" .. qName .. "|r")
+                    row.wqBadge:SetBackdropColor(0.08, 0.08, 0.06, 0.85)
+                    row.wqBadge:SetBackdropBorderColor(0.7, 0.6, 0.2, 0.6)
+                    row.wqBadge.icon:SetVertexColor(0.9, 0.8, 0.2)
+                end
+                row.nameText:SetPoint("RIGHT", row, "RIGHT", -172, 0)
+            elseif hasChildActive and not subData.completed then
+                -- Parent category has active WQ among its children
+                row.wqBadge:Show()
+                local count = item.childActiveWQs and #item.childActiveWQs or 1
+                row.wqBadge.text:SetText("|cFF00FF00★ WQ UP" .. (count > 1 and (" ("..count..")") or "") .. "|r")
+                row.wqBadge:SetBackdropColor(0.04, 0.18, 0.08, 0.95)
+                row.wqBadge:SetBackdropBorderColor(0.1, 1.0, 0.4, 0.95)
+                row.wqBadge.icon:SetVertexColor(0.2, 1.0, 0.4)
+                row.nameText:SetPoint("RIGHT", row, "RIGHT", -172, 0)
+            elseif hasChildWQ and not subData.completed then
+                -- Parent category in overall meta view has rotating WQs required
+                row.wqBadge:Show()
+                row.wqBadge.text:SetText("|cFF66B2FF[WQ Meta]|r")
+                row.wqBadge:SetBackdropColor(0.06, 0.09, 0.14, 0.85)
+                row.wqBadge:SetBackdropBorderColor(0.2, 0.4, 0.7, 0.7)
+                row.wqBadge.icon:SetVertexColor(0.4, 0.7, 1.0)
+                row.nameText:SetPoint("RIGHT", row, "RIGHT", -172, 0)
+            else
+                row.wqBadge:Hide()
+                row.nameText:SetPoint("RIGHT", row, "RIGHT", -80, 0)
+            end
 
             -- Sub-progress (e.g. 14/18)
             if item.subTree and item.subTree.totalCriteria > 0 then
@@ -691,9 +1238,42 @@ function MCT.RefreshDisplay()
 
             row.nameText:ClearAllPoints()
             row.nameText:SetPoint("LEFT", row, "LEFT", leftOffset + 40, 0)
-            row.nameText:SetPoint("RIGHT", row, "RIGHT", -90, 0)
             local textColor = item.completed and "|cFF888888" or "|cFFD0D0D0"
             row.nameText:SetText(textColor .. cName .. "|r")
+
+            -- World Quest Badge Check for Criteria
+            local parentWQ = parentID and MCT.Engine.GetAchievementWorldQuests and MCT.Engine.GetAchievementWorldQuests(parentID)
+            local wqData = item.worldQuestData or parentWQ
+            row.wqBadge.worldQuestData = wqData
+            row.wqBadge.subData = nil
+            row.wqBadge.childActiveWQs = nil
+            row.wqBadge.childAllWQs = nil
+
+            if wqData and not item.completed then
+                row.wqBadge:Show()
+                if wqData.hasActive and wqData.activeQuest then
+                    local q = wqData.activeQuest
+                    local timeStr = (q.timeLeftFormatted ~= "" and q.timeLeftFormatted) or "UP"
+                    row.wqBadge.text:SetText("|cFF00FF00" .. timeStr .. "|r")
+                    row.wqBadge:SetBackdropColor(0.04, 0.16, 0.08, 0.95)
+                    row.wqBadge:SetBackdropBorderColor(0.1, 0.9, 0.35, 0.9)
+                    row.wqBadge.icon:SetVertexColor(0.2, 1.0, 0.4)
+                elseif wqData.hasCompleted then
+                    row.wqBadge.text:SetText("|cFF55AAFFDone|r")
+                    row.wqBadge:SetBackdropColor(0.06, 0.10, 0.16, 0.9)
+                    row.wqBadge:SetBackdropBorderColor(0.2, 0.5, 0.8, 0.7)
+                    row.wqBadge.icon:SetVertexColor(0.3, 0.7, 1.0)
+                else
+                    row.wqBadge.text:SetText("|cFFFFCC00WQ Item|r")
+                    row.wqBadge:SetBackdropColor(0.08, 0.08, 0.06, 0.85)
+                    row.wqBadge:SetBackdropBorderColor(0.7, 0.6, 0.2, 0.6)
+                    row.wqBadge.icon:SetVertexColor(0.9, 0.8, 0.2)
+                end
+                row.nameText:SetPoint("RIGHT", row, "RIGHT", -172, 0)
+            else
+                row.wqBadge:Hide()
+                row.nameText:SetPoint("RIGHT", row, "RIGHT", -80, 0)
+            end
 
             -- Quantity Progress
             if item.quantityString and item.quantityString ~= "" then
@@ -724,14 +1304,17 @@ function MCT.SelectAchievement(achievementID)
     currentMetaID = achievementID
     MCT_DB.selectedPresetID = achievementID
 
-    -- Update Preset Buttons Highlights
-    for pid, btn in pairs(presetButtons) do
-        if pid == achievementID then
-            btn:LockHighlight()
-        else
-            btn:UnlockHighlight()
+    -- Update Expansion and Sub-Heading Navigation Highlights
+    if MCT.Presets then
+        for _, p in ipairs(MCT.Presets) do
+            if p.id == achievementID and p.expansionKey then
+                currentExpansionKey = p.expansionKey
+                lastPresetByExpansion[p.expansionKey] = achievementID
+                break
+            end
         end
     end
+    UpdatePresetNavigation(achievementID)
 
     -- Build Tree (depth 5 allows exploring full hierarchies like Hot Tropic, Mecha-Done, etc.)
     activeTree = MCT.Engine.GetCriteriaTree(achievementID, 5, 1)
@@ -780,6 +1363,96 @@ function MCT.SelectAchievement(achievementID)
         progressText:SetText(activeTree.completedCriteria .. " / " .. activeTree.totalCriteria .. " (" .. activeTree.percent .. "%)")
     end
 
+    -- Update World Quest Alert Bar and Header WQ Status
+    local activeWQs = activeTree.activeWorldQuests or {}
+    local allWQs = activeTree.allWorldQuests or {}
+    wqAlertEntries = activeWQs
+    wqAlertAllEntries = allWQs
+
+    if #activeWQs > 0 then
+        wqAlertBar:Show()
+        wqAlertBar:SetBackdropColor(0.04, 0.18, 0.08, 0.95)
+        wqAlertBar:SetBackdropBorderColor(0.1, 1.0, 0.4, 0.95)
+        wqAlertIcon:SetVertexColor(0.2, 1.0, 0.4)
+        headerCard:SetPoint("TOPLEFT", wqAlertBar, "BOTTOMLEFT", 0, -4)
+        if #activeWQs == 1 then
+            local q = activeWQs[1].activeQuest
+            local timeStr = (q.timeLeftFormatted ~= "" and (" (" .. q.timeLeftFormatted .. ")")) or ""
+            wqAlertText:SetText("|cFF00FF00★ ACTIVE WQ AVAILABLE:|r |cFFFFFFFF" .. q.title .. "|r in |cFFFFD100" .. q.zoneName .. "|r" .. timeStr .. " |cFF33CCFF[Click to Expand]|r")
+        else
+            wqAlertText:SetText("|cFF00FF00★ " .. #activeWQs .. " World Quests are UP for missing requirements!|r |cFF33CCFF[Click to Expand]|r")
+        end
+    elseif #allWQs > 0 then
+        -- Meta has rotating WQs required, show informative banner even if currently offline
+        wqAlertBar:Show()
+        wqAlertBar:SetBackdropColor(0.06, 0.09, 0.14, 0.95)
+        wqAlertBar:SetBackdropBorderColor(0.2, 0.45, 0.75, 0.8)
+        wqAlertIcon:SetVertexColor(0.4, 0.7, 1.0)
+        wqAlertText:SetText("|cFF00BFFF★ Overall Meta WQ Requirements:|r |cFFFFFFFF" .. #allWQs .. " achievements require rotating World Quests|r |cFF88AAFF[Click to Reveal]|r")
+    else
+        wqAlertBar:Hide()
+        headerCard:SetPoint("TOPLEFT", searchBar, "BOTTOMLEFT", 0, -6)
+    end
+
+    -- Update Parent Meta Indicator (Is this achievement part of an overall meta?)
+    local parentMeta = MCT.Engine.GetParentMetaForAchievement and MCT.Engine.GetParentMetaForAchievement(achievementID)
+    if parentMeta and parentMeta.presetID ~= achievementID and not activePreset then
+        metaParentBtn:Show()
+        metaParentBtn.parentPresetID = parentMeta.presetID
+        metaParentBtn.targetAchID = achievementID
+        metaParentBtn.parentMetaPath = parentMeta.path
+        metaParentBtn.text:SetText("|cFF00FFCC★ Part of Overall Meta:|r " .. parentMeta.shortName .. " - " .. parentMeta.presetName .. " |cFF33CCFF[View in Meta]|r")
+        metaParentBtn:SetBackdropColor(0.06, 0.12, 0.18, 0.9)
+        metaParentBtn:SetBackdropBorderColor(0.2, 0.6, 0.9, 0.8)
+        metaParentIcon:SetVertexColor(0.3, 0.8, 1.0)
+    else
+        metaParentBtn:Hide()
+        metaParentBtn.parentPresetID = nil
+        metaParentBtn.targetAchID = nil
+        metaParentBtn.parentMetaPath = nil
+    end
+
+    -- Update Header World Quest Button if current meta achievement has a World Quest
+    if activeTree.worldQuestData and activeTree.worldQuestData.firstQuest then
+        local q = activeTree.worldQuestData.activeQuest or activeTree.worldQuestData.firstQuest
+        metaWQBtn:Show()
+        metaWQBtn.worldQuest = q
+        if metaParentBtn:IsShown() then
+            metaWQBtn:SetPoint("TOPLEFT", metaParentBtn, "BOTTOMLEFT", 0, -3)
+        else
+            metaWQBtn:SetPoint("TOPLEFT", metaReward, "BOTTOMLEFT", 0, -3)
+        end
+
+        if q.isActive then
+            metaWQBtn.text:SetText("|cFF00BFFFWorld Quest:|r |cFFFFFFFF" .. q.title .. "|r - |cFF00FF00● UP (" .. (q.timeLeftFormatted ~= "" and q.timeLeftFormatted or "Active") .. ")|r [|cFFFFD100" .. q.zoneName .. "|r]")
+            metaWQBtn:SetBackdropColor(0.04, 0.16, 0.08, 0.9)
+            metaWQBtn:SetBackdropBorderColor(0.1, 0.9, 0.3, 0.9)
+            metaWQBtn.icon:SetVertexColor(0.1, 1.0, 0.3)
+        elseif q.isCompleted then
+            metaWQBtn.text:SetText("|cFF00BFFFWorld Quest:|r |cFFFFFFFF" .. q.title .. "|r - |cFF55AAFFCompleted Today|r [|cFFFFD100" .. q.zoneName .. "|r]")
+            metaWQBtn:SetBackdropColor(0.06, 0.10, 0.16, 0.9)
+            metaWQBtn:SetBackdropBorderColor(0.2, 0.5, 0.8, 0.7)
+            metaWQBtn.icon:SetVertexColor(0.3, 0.7, 1.0)
+        else
+            metaWQBtn.text:SetText("|cFF00BFFFWorld Quest:|r |cFFFFFFFF" .. q.title .. "|r - |cFFFF5555Offline / Inactive|r [|cFFFFD100" .. q.zoneName .. "|r]")
+            metaWQBtn:SetBackdropColor(0.08, 0.08, 0.10, 0.7)
+            metaWQBtn:SetBackdropBorderColor(0.3, 0.3, 0.35, 0.5)
+            metaWQBtn.icon:SetVertexColor(0.5, 0.5, 0.5)
+        end
+    else
+        metaWQBtn:Hide()
+        metaWQBtn.worldQuest = nil
+    end
+
+    -- Adjust headerCard height based on visible banner buttons
+    if metaWQBtn:IsShown() and metaParentBtn:IsShown() then
+        headerCard:SetHeight(116)
+    elseif metaWQBtn:IsShown() or metaParentBtn:IsShown() then
+        headerCard:SetHeight(96)
+    else
+        headerCard:SetHeight(78)
+    end
+
     -- Reset vertical scroll to top on switching achievements
     scrollFrame:SetVerticalScroll(0)
 
@@ -794,6 +1467,9 @@ eventFrame:RegisterEvent("ADDON_LOADED")
 eventFrame:RegisterEvent("CRITERIA_UPDATE")
 eventFrame:RegisterEvent("ACHIEVEMENT_SEARCH_UPDATED")
 eventFrame:RegisterEvent("TRACKED_ACHIEVEMENT_LIST_CHANGED")
+eventFrame:RegisterEvent("QUEST_LOG_UPDATE")
+eventFrame:RegisterEvent("TASK_PROGRESS_UPDATE")
+eventFrame:RegisterEvent("QUEST_WATCH_LIST_CHANGED")
 
 -- Throttled refresh to prevent visual hitching during event bursts
 local refreshPending = false
@@ -808,6 +1484,18 @@ local function RequestThrottledRefresh()
             if activeTree then
                 progressBar:SetValue(activeTree.percent)
                 progressText:SetText(activeTree.completedCriteria .. " / " .. activeTree.totalCriteria .. " (" .. activeTree.percent .. "%)")
+                
+                -- Refresh alerts
+                local activeWQs = activeTree.activeWorldQuests or {}
+                wqAlertEntries = activeWQs
+                if #activeWQs > 0 then
+                    wqAlertBar:Show()
+                    headerCard:SetPoint("TOPLEFT", wqAlertBar, "BOTTOMLEFT", 0, -4)
+                else
+                    wqAlertBar:Hide()
+                    headerCard:SetPoint("TOPLEFT", searchBar, "BOTTOMLEFT", 0, -6)
+                end
+
                 MCT.RefreshDisplay()
             end
         end
@@ -829,9 +1517,9 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
         local targetID = MCT_DB.selectedPresetID or MCT.DefaultPresetID
         MCT.SelectAchievement(targetID)
 
-        print("|cFF00A6FFMetaCompletionTracker|r v2.0 loaded. Type |cFF00FF00/mct|r to toggle.")
+        print("|cFF00A6FFMetaCompletionTracker|r v2.1 loaded. Type |cFF00FF00/mct|r to toggle.")
 
-    elseif event == "CRITERIA_UPDATE" or event == "ACHIEVEMENT_SEARCH_UPDATED" or event == "TRACKED_ACHIEVEMENT_LIST_CHANGED" then
+    elseif event == "CRITERIA_UPDATE" or event == "ACHIEVEMENT_SEARCH_UPDATED" or event == "TRACKED_ACHIEVEMENT_LIST_CHANGED" or event == "QUEST_LOG_UPDATE" or event == "TASK_PROGRESS_UPDATE" or event == "QUEST_WATCH_LIST_CHANGED" then
         RequestThrottledRefresh()
     end
 end)

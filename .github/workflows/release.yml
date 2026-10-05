@@ -50,6 +50,7 @@ jobs:
           # Copy addon files into the MetaCompletionTracker folder
           cp MetaCompletionTracker.toc "$STAGING_DIR/"
           cp Presets.lua "$STAGING_DIR/"
+          cp WorldQuests.lua "$STAGING_DIR/"
           cp AchievementEngine.lua "$STAGING_DIR/"
           cp MCT.lua "$STAGING_DIR/"
 

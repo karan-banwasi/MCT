@@ -7,6 +7,7 @@ $destinationPath = "C:\Program Files (x86)\World of Warcraft\_retail_\Interface\
 $addonFiles = @(
     "MetaCompletionTracker.toc",
     "Presets.lua",
+    "WorldQuests.lua",
     "AchievementEngine.lua",
     "MCT.lua"
 )
