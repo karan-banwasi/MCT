@@ -420,13 +420,15 @@ end
 -- Recursively find all uncompleted achievements in a criteria tree that have active World Quests
 function MCT.Engine.FindActiveWorldQuestsInTree(tree)
     local found = {}
+    local visited = {}
     if not tree or not tree.criteria then return found end
 
     local function SearchCriteria(criteriaList)
         for _, item in ipairs(criteriaList) do
             if item.isSubAchievement and item.subAchievementData then
                 local subData = item.subAchievementData
-                if not subData.completed then
+                if not subData.completed and not visited[subData.id] then
+                    visited[subData.id] = true
                     local wqData = MCT.Engine.GetAchievementWorldQuests(subData.id)
                     if wqData and wqData.hasActive then
                         table.insert(found, {
@@ -440,17 +442,102 @@ function MCT.Engine.FindActiveWorldQuestsInTree(tree)
                         SearchCriteria(item.subTree.criteria)
                     end
                 end
+            elseif not item.isSubAchievement and item.worldQuestData and not item.completed then
+                local wq = item.worldQuestData
+                if wq.hasActive and wq.activeQuest then
+                    local key = "q_" .. (wq.activeQuest.questID or item.index)
+                    if not visited[key] then
+                        visited[key] = true
+                        table.insert(found, {
+                            achievementID = tree.id,
+                            achievementName = item.criteriaString or (tree.data and tree.data.name) or "Requirement",
+                            activeQuest = wq.activeQuest,
+                            allQuests = wq.quests,
+                        })
+                    end
+                end
             end
         end
     end
 
     -- Also check the root achievement itself if uncompleted
-    if tree.data and not tree.data.completed then
+    if tree.data and not tree.data.completed and not visited[tree.id] then
+        visited[tree.id] = true
         local rootWq = MCT.Engine.GetAchievementWorldQuests(tree.id)
         if rootWq and rootWq.hasActive then
             table.insert(found, {
                 achievementID = tree.id,
                 achievementName = tree.data.name,
+                activeQuest = rootWq.activeQuest,
+                allQuests = rootWq.quests,
+            })
+        end
+    end
+
+    SearchCriteria(tree.criteria)
+    return found
+end
+
+-- Recursively find all achievements in a criteria tree that have any World Quest requirements
+function MCT.Engine.FindAllWorldQuestsInTree(tree)
+    local found = {}
+    local visited = {}
+    if not tree or not tree.criteria then return found end
+
+    local function SearchCriteria(criteriaList)
+        for _, item in ipairs(criteriaList) do
+            if item.isSubAchievement and item.subAchievementData then
+                local subData = item.subAchievementData
+                if not subData.completed and not visited[subData.id] then
+                    visited[subData.id] = true
+                    local wqData = MCT.Engine.GetAchievementWorldQuests(subData.id)
+                    if wqData and wqData.firstQuest then
+                        table.insert(found, {
+                            achievementID = subData.id,
+                            achievementName = subData.name,
+                            questName = wqData.firstQuest.title,
+                            zoneName = wqData.firstQuest.zoneName,
+                            hasActive = wqData.hasActive,
+                            activeQuest = wqData.activeQuest,
+                            allQuests = wqData.quests,
+                        })
+                    end
+                    if item.subTree and item.subTree.criteria then
+                        SearchCriteria(item.subTree.criteria)
+                    end
+                end
+            elseif not item.isSubAchievement and item.worldQuestData and not item.completed then
+                local wq = item.worldQuestData
+                if wq.firstQuest then
+                    local key = "q_" .. (wq.firstQuest.questID or item.index)
+                    if not visited[key] then
+                        visited[key] = true
+                        table.insert(found, {
+                            achievementID = tree.id,
+                            achievementName = item.criteriaString or (tree.data and tree.data.name) or "Requirement",
+                            questName = wq.firstQuest.title,
+                            zoneName = wq.firstQuest.zoneName,
+                            hasActive = wq.hasActive,
+                            activeQuest = wq.activeQuest,
+                            allQuests = wq.quests,
+                        })
+                    end
+                end
+            end
+        end
+    end
+
+    -- Also check the root achievement itself if uncompleted
+    if tree.data and not tree.data.completed and not visited[tree.id] then
+        visited[tree.id] = true
+        local rootWq = MCT.Engine.GetAchievementWorldQuests(tree.id)
+        if rootWq and rootWq.firstQuest then
+            table.insert(found, {
+                achievementID = tree.id,
+                achievementName = tree.data.name,
+                questName = rootWq.firstQuest.title,
+                zoneName = rootWq.firstQuest.zoneName,
+                hasActive = rootWq.hasActive,
                 activeQuest = rootWq.activeQuest,
                 allQuests = rootWq.quests,
             })

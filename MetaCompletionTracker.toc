@@ -2,7 +2,7 @@
 ## Title: |cFF00A6FFMetaCompletionTracker|r
 ## Notes: Track progress and missing requirements for expansion-wide and custom meta-achievements.
 ## Author: Egepi, Toddish
-## Version: 2.1.1
+## Version: 2.1.2
 ## SavedVariables: MCT_DB
 
 Presets.lua

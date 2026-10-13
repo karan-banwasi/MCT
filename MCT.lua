@@ -66,9 +66,11 @@ local titleText = titleBar:CreateFontString(nil, "ARTWORK", "GameFontHighlightMe
 titleText:SetPoint("LEFT", titleIcon, "RIGHT", 8)
 titleText:SetText("|cFF00BFFFMetaCompletionTracker|r")
 
+local addonVersion = (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(addonName, "Version")) or "2.1.2"
+
 local versionText = titleBar:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
 versionText:SetPoint("LEFT", titleText, "RIGHT", 6)
-versionText:SetText("v2.1")
+versionText:SetText("v" .. addonVersion)
 
 local closeButton = CreateFrame("Button", nil, mainFrame, "UIPanelCloseButton")
 closeButton:SetPoint("TOPRIGHT", mainFrame, "TOPRIGHT", -2, -2)
@@ -110,7 +112,7 @@ popupSubtitle:SetText("Press |cFF00FF00Ctrl+C|r to copy, then paste into your we
 local popupEditBox = CreateFrame("EditBox", nil, copyPopup, "InputBoxTemplate")
 popupEditBox:SetSize(400, 22)
 popupEditBox:SetPoint("TOPLEFT", popupSubtitle, "BOTTOMLEFT", 4, -8)
-popupEditBox:SetAutoFocus(true)
+popupEditBox:SetAutoFocus(false)
 popupEditBox:SetScript("OnEscapePressed", function() copyPopup:Hide() end)
 popupEditBox:SetScript("OnEnterPressed", function() copyPopup:Hide() end)
 popupEditBox:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
@@ -370,7 +372,7 @@ searchEditBox:SetSize(110, 20)
 searchEditBox:SetPoint("LEFT", searchLabel, "RIGHT", 6, 0)
 searchEditBox:SetAutoFocus(false)
 searchEditBox:SetNumeric(false)
-searchEditBox:SetMaxLetters(60)
+searchEditBox:SetMaxLetters(200)
 
 local searchGoBtn = CreateFrame("Button", nil, searchBar, "UIPanelButtonTemplate")
 searchGoBtn:SetSize(52, 22)
@@ -392,6 +394,9 @@ end
 
 searchGoBtn:SetScript("OnClick", ProcessInput)
 searchEditBox:SetScript("OnEnterPressed", ProcessInput)
+searchEditBox:SetScript("OnEscapePressed", function(self)
+    self:ClearFocus()
+end)
 
 -- Expand / Collapse All Button
 local toggleAllBtn = CreateFrame("Button", nil, searchBar, "UIPanelButtonTemplate")
@@ -799,6 +804,13 @@ local function AcquireRow()
         local chevronText = chevron:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
         chevronText:SetPoint("CENTER")
         chevron.text = chevronText
+        chevron:SetScript("OnClick", function(self)
+            local pRow = self:GetParent()
+            if pRow and pRow.subID then
+                expandedNodes[pRow.subID] = not expandedNodes[pRow.subID]
+                MCT.RefreshDisplay()
+            end
+        end)
         row.chevron = chevron
 
         -- Status Icon (Checkmark / Cross)
@@ -820,7 +832,9 @@ local function AcquireRow()
         -- Progress Label (e.g. 14/18)
         local progressLabel = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
         progressLabel:SetPoint("RIGHT", row, "RIGHT", -30, 0)
+        progressLabel:SetWidth(48)
         progressLabel:SetJustifyH("RIGHT")
+        progressLabel:SetWordWrap(false)
         row.progressLabel = progressLabel
 
         -- World Quest Status Badge Button
@@ -921,6 +935,13 @@ local function AcquireRow()
         trackIcon:SetPoint("CENTER")
         trackIcon:SetTexture("Interface\\Icons\\INV_Misc_Map02")
         trackBtn.icon = trackIcon
+        trackBtn:SetScript("OnClick", function(self)
+            local pRow = self:GetParent()
+            if pRow and pRow.subID then
+                MCT.Engine.ToggleTrackAchievement(pRow.subID)
+                MCT.RefreshDisplay()
+            end
+        end)
         row.trackBtn = trackBtn
 
         -- Tooltips
@@ -1024,6 +1045,7 @@ local function ReleaseAllRows()
         row:ClearAllPoints()
         row.data = nil
         row.parentID = nil
+        row.subID = nil
         if row.wqBadge then
             row.wqBadge:Hide()
             row.wqBadge.worldQuestData = nil
@@ -1085,6 +1107,7 @@ function MCT.RefreshDisplay()
         if item.isSubAchievement and item.subAchievementData then
             local subData = item.subAchievementData
             row.data = subData
+            row.subID = subData.id
             row.parentID = parentID
 
             local hasSubTree = item.subTree and item.subTree.criteria and #item.subTree.criteria > 0
@@ -1097,10 +1120,6 @@ function MCT.RefreshDisplay()
                 row.chevron:Show()
                 local isExpanded = expandedNodes[subData.id] or false
                 row.chevron.text:SetText(isExpanded and "|cFFFFD100[-]|r" or "|cFF00BFFF[+]|r")
-                row.chevron:SetScript("OnClick", function()
-                    expandedNodes[subData.id] = not expandedNodes[subData.id]
-                    MCT.RefreshDisplay()
-                end)
             else
                 row.chevron:Hide()
             end
@@ -1182,7 +1201,7 @@ function MCT.RefreshDisplay()
                 row.nameText:SetPoint("RIGHT", row, "RIGHT", -172, 0)
             else
                 row.wqBadge:Hide()
-                row.nameText:SetPoint("RIGHT", row, "RIGHT", -80, 0)
+                row.nameText:SetPoint("RIGHT", row, "RIGHT", -84, 0)
             end
 
             -- Sub-progress (e.g. 14/18)
@@ -1198,10 +1217,6 @@ function MCT.RefreshDisplay()
             local isTracked = MCT.Engine.IsTracked(subData.id)
             row.trackBtn:Show()
             row.trackBtn.icon:SetVertexColor(isTracked and 1 or 0.4, isTracked and 0.82 or 0.4, isTracked and 0 or 0.4)
-            row.trackBtn:SetScript("OnClick", function()
-                MCT.Engine.ToggleTrackAchievement(subData.id)
-                MCT.RefreshDisplay()
-            end)
 
             yOffset = yOffset + 29
 
@@ -1303,6 +1318,11 @@ function MCT.SelectAchievement(achievementID)
     if type(achievementID) == "number" and achievementID <= 0 then return end
     currentMetaID = achievementID
     MCT_DB.selectedPresetID = achievementID
+    expandedNodes = {}
+    allExpanded = false
+    if toggleAllBtn then
+        toggleAllBtn:SetText("Expand")
+    end
 
     -- Update Expansion and Sub-Heading Navigation Highlights
     if MCT.Presets then
@@ -1333,7 +1353,7 @@ function MCT.SelectAchievement(achievementID)
         end
     end
 
-    local displayTitle = metaData.name or ("Achievement #" .. achievementID)
+    local displayTitle = (metaData.isLoaded and metaData.name) or (activePreset and activePreset.name) or metaData.name or ("Achievement #" .. achievementID)
     if activePreset and (activePreset.category == "Expansion Super-Meta" or activePreset.category == "Expansion Meta") then
         local rawName = (metaData.isLoaded and metaData.name) or activePreset.name or metaData.name
         if rawName and not rawName:find(activePreset.expansion, 1, true) then
@@ -1374,7 +1394,9 @@ function MCT.SelectAchievement(achievementID)
         wqAlertBar:SetBackdropColor(0.04, 0.18, 0.08, 0.95)
         wqAlertBar:SetBackdropBorderColor(0.1, 1.0, 0.4, 0.95)
         wqAlertIcon:SetVertexColor(0.2, 1.0, 0.4)
+        headerCard:ClearAllPoints()
         headerCard:SetPoint("TOPLEFT", wqAlertBar, "BOTTOMLEFT", 0, -4)
+        headerCard:SetPoint("TOPRIGHT", searchBar, "BOTTOMRIGHT", 0, -4)
         if #activeWQs == 1 then
             local q = activeWQs[1].activeQuest
             local timeStr = (q.timeLeftFormatted ~= "" and (" (" .. q.timeLeftFormatted .. ")")) or ""
@@ -1389,14 +1411,19 @@ function MCT.SelectAchievement(achievementID)
         wqAlertBar:SetBackdropBorderColor(0.2, 0.45, 0.75, 0.8)
         wqAlertIcon:SetVertexColor(0.4, 0.7, 1.0)
         wqAlertText:SetText("|cFF00BFFF★ Overall Meta WQ Requirements:|r |cFFFFFFFF" .. #allWQs .. " achievements require rotating World Quests|r |cFF88AAFF[Click to Reveal]|r")
+        headerCard:ClearAllPoints()
+        headerCard:SetPoint("TOPLEFT", wqAlertBar, "BOTTOMLEFT", 0, -4)
+        headerCard:SetPoint("TOPRIGHT", searchBar, "BOTTOMRIGHT", 0, -4)
     else
         wqAlertBar:Hide()
+        headerCard:ClearAllPoints()
         headerCard:SetPoint("TOPLEFT", searchBar, "BOTTOMLEFT", 0, -6)
+        headerCard:SetPoint("TOPRIGHT", searchBar, "BOTTOMRIGHT", 0, -6)
     end
 
     -- Update Parent Meta Indicator (Is this achievement part of an overall meta?)
     local parentMeta = MCT.Engine.GetParentMetaForAchievement and MCT.Engine.GetParentMetaForAchievement(achievementID)
-    if parentMeta and parentMeta.presetID ~= achievementID and not activePreset then
+    if parentMeta and parentMeta.presetID ~= achievementID and (not activePreset or activePreset.category ~= "Expansion Super-Meta") then
         metaParentBtn:Show()
         metaParentBtn.parentPresetID = parentMeta.presetID
         metaParentBtn.targetAchID = achievementID
@@ -1417,11 +1444,13 @@ function MCT.SelectAchievement(achievementID)
         local q = activeTree.worldQuestData.activeQuest or activeTree.worldQuestData.firstQuest
         metaWQBtn:Show()
         metaWQBtn.worldQuest = q
+        metaWQBtn:ClearAllPoints()
         if metaParentBtn:IsShown() then
             metaWQBtn:SetPoint("TOPLEFT", metaParentBtn, "BOTTOMLEFT", 0, -3)
         else
             metaWQBtn:SetPoint("TOPLEFT", metaReward, "BOTTOMLEFT", 0, -3)
         end
+        metaWQBtn:SetPoint("RIGHT", headerCard, "RIGHT", -10, 0)
 
         if q.isActive then
             metaWQBtn.text:SetText("|cFF00BFFFWorld Quest:|r |cFFFFFFFF" .. q.title .. "|r - |cFF00FF00● UP (" .. (q.timeLeftFormatted ~= "" and q.timeLeftFormatted or "Active") .. ")|r [|cFFFFD100" .. q.zoneName .. "|r]")
@@ -1466,6 +1495,8 @@ local eventFrame = CreateFrame("Frame")
 eventFrame:RegisterEvent("ADDON_LOADED")
 eventFrame:RegisterEvent("CRITERIA_UPDATE")
 eventFrame:RegisterEvent("ACHIEVEMENT_SEARCH_UPDATED")
+eventFrame:RegisterEvent("ACHIEVEMENT_EARNED")
+eventFrame:RegisterEvent("QUEST_DATA_LOAD_RESULT")
 eventFrame:RegisterEvent("TRACKED_ACHIEVEMENT_LIST_CHANGED")
 eventFrame:RegisterEvent("QUEST_LOG_UPDATE")
 eventFrame:RegisterEvent("TASK_PROGRESS_UPDATE")
@@ -1487,13 +1518,19 @@ local function RequestThrottledRefresh()
                 
                 -- Refresh alerts
                 local activeWQs = activeTree.activeWorldQuests or {}
+                local allWQs = activeTree.allWorldQuests or {}
                 wqAlertEntries = activeWQs
-                if #activeWQs > 0 then
+                wqAlertAllEntries = allWQs
+                if #activeWQs > 0 or #allWQs > 0 then
                     wqAlertBar:Show()
+                    headerCard:ClearAllPoints()
                     headerCard:SetPoint("TOPLEFT", wqAlertBar, "BOTTOMLEFT", 0, -4)
+                    headerCard:SetPoint("TOPRIGHT", searchBar, "BOTTOMRIGHT", 0, -4)
                 else
                     wqAlertBar:Hide()
+                    headerCard:ClearAllPoints()
                     headerCard:SetPoint("TOPLEFT", searchBar, "BOTTOMLEFT", 0, -6)
+                    headerCard:SetPoint("TOPRIGHT", searchBar, "BOTTOMRIGHT", 0, -6)
                 end
 
                 MCT.RefreshDisplay()
@@ -1517,9 +1554,9 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
         local targetID = MCT_DB.selectedPresetID or MCT.DefaultPresetID
         MCT.SelectAchievement(targetID)
 
-        print("|cFF00A6FFMetaCompletionTracker|r v2.1 loaded. Type |cFF00FF00/mct|r to toggle.")
+        print("|cFF00A6FFMetaCompletionTracker|r v" .. addonVersion .. " loaded. Type |cFF00FF00/mct|r to toggle.")
 
-    elseif event == "CRITERIA_UPDATE" or event == "ACHIEVEMENT_SEARCH_UPDATED" or event == "TRACKED_ACHIEVEMENT_LIST_CHANGED" or event == "QUEST_LOG_UPDATE" or event == "TASK_PROGRESS_UPDATE" or event == "QUEST_WATCH_LIST_CHANGED" then
+    elseif event == "CRITERIA_UPDATE" or event == "ACHIEVEMENT_SEARCH_UPDATED" or event == "ACHIEVEMENT_EARNED" or event == "QUEST_DATA_LOAD_RESULT" or event == "TRACKED_ACHIEVEMENT_LIST_CHANGED" or event == "QUEST_LOG_UPDATE" or event == "TASK_PROGRESS_UPDATE" or event == "QUEST_WATCH_LIST_CHANGED" then
         RequestThrottledRefresh()
     end
 end)
