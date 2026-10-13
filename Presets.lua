@@ -164,6 +164,18 @@ MCT.Presets = {
         icon = 5342938,
         description = "Complete all outdoor activities and meta-achievements within the Vaults of Atal'Utek on the Coiled Isle.",
     },
+    {
+        id = 64150,
+        name = "Bane of the Swarm",
+        subHeading = "Bane of the Swarm",
+        shortName = "Aqir",
+        expansionKey = "MID",
+        expansion = "Midnight",
+        category = "Zone Super-Meta",
+        reward = "Bane of the Swarm (Title)",
+        icon = 5342938,
+        description = "Repel the Aqir Invasions across Eversong Woods and Zul'Aman, complete invasion scenarios, and attain Exalted with the Aqir Research Enclave.",
+    },
 
     -- World Events
     {

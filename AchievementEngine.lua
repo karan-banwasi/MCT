@@ -496,6 +496,11 @@ local knownMetaParents = {
     
     -- Shadowlands: Back from the Beyond (20501)
     [20501] = { presetID = 20501, presetName = "Shadowlands: Back from the Beyond", shortName = "SL", expansion = "Shadowlands" },
+
+    -- Midnight
+    [62386] = { presetID = 62386, presetName = "Midnight: Light Up the Night", shortName = "MID", expansion = "Midnight" },
+    [63630] = { presetID = 63630, presetName = "Assault the Vault", shortName = "Vault", expansion = "Midnight" },
+    [64150] = { presetID = 64150, presetName = "Bane of the Swarm", shortName = "Aqir", expansion = "Midnight" },
 }
 
 for k, v in pairs(knownMetaParents) do

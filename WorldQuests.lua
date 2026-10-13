@@ -179,6 +179,14 @@ MCT.WorldQuests = {
             notes = "Complete rotating Temple Patrols (10m), Temple Strikes, Temple Incursions, and defeat Ancient Foes.",
         }
     },
+    [64150] = { -- Bane of the Swarm / Aqir Invasions
+        {
+            questID = 84100,
+            name = "Aqir Invasions",
+            zone = "Eversong Woods / Zul'Aman",
+            notes = "Participate in hourly zone-wide Aqir Invasions in Eversong Woods or Zul'Aman. Complete scenario variants and defeat the Aqir Monstrosity.",
+        }
+    },
 }
 
 ---------------------------------------------------------------------------
