@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install lint and packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y luacheck zip unzip
+
+      - name: Run luacheck
+        run: luacheck .
+
+      - name: Validate MetaCompletionTracker.toc
+        run: |
+          set -euo pipefail
+          TOC_FILE="MetaCompletionTracker.toc"
+          if [ ! -f "$TOC_FILE" ]; then
+            echo "ERROR: $TOC_FILE not found."
+            exit 1
+          fi
+
+          INTERFACE=$(grep -i '^## Interface:' "$TOC_FILE" | head -n1 | sed 's/^## Interface:[[:space:]]*//' | tr -d '\r' | xargs)
+          if ! [[ "$INTERFACE" =~ ^[0-9]+$ ]]; then
+            echo "ERROR: Invalid or missing ## Interface in $TOC_FILE: '$INTERFACE'"
+            exit 1
+          fi
+          echo "Validated Interface: $INTERFACE"
+
+          VERSION=$(grep -i '^## Version:' "$TOC_FILE" | head -n1 | sed 's/^## Version:[[:space:]]*//' | tr -d '\r' | xargs)
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][A-Za-z0-9.]+)?$ ]]; then
+            echo "ERROR: Invalid or missing ## Version in $TOC_FILE: '$VERSION'"
+            exit 1
+          fi
+          echo "Validated Version: $VERSION"
+
+          while IFS= read -r raw_line || [ -n "$raw_line" ]; do
+            line=$(printf '%s' "$raw_line" | tr -d '\r' | xargs)
+            if [ -z "$line" ] || [[ "$line" == \#* ]]; then
+              continue
+            fi
+            if [ ! -f "$line" ]; then
+              echo "ERROR: File listed in $TOC_FILE does not exist: '$line'"
+              exit 1
+            fi
+            echo "Verified TOC entry: $line"
+          done < "$TOC_FILE"
+
+      - name: Dry-run Addon Zip Packaging
+        run: |
+          set -euo pipefail
+          TOC_FILE="MetaCompletionTracker.toc"
+          STAGING_DIR="staging/MetaCompletionTracker"
+          rm -rf staging MetaCompletionTracker-ci-test.zip
+          mkdir -p "$STAGING_DIR"
+
+          cp "$TOC_FILE" "$STAGING_DIR/"
+          if [ -f "LICENSE" ]; then
+            cp "LICENSE" "$STAGING_DIR/"
+          fi
+
+          while IFS= read -r raw_line || [ -n "$raw_line" ]; do
+            line=$(printf '%s' "$raw_line" | tr -d '\r' | xargs)
+            if [ -z "$line" ] || [[ "$line" == \#* ]]; then
+              continue
+            fi
+            dest_dir="$STAGING_DIR/$(dirname "$line")"
+            mkdir -p "$dest_dir"
+            cp "$line" "$dest_dir/"
+          done < "$TOC_FILE"
+
+          (cd staging && zip -r "../MetaCompletionTracker-ci-test.zip" MetaCompletionTracker)
+          unzip -l MetaCompletionTracker-ci-test.zip
+
+          # Assert required TOC entry and exclude non-addon files
+          unzip -l MetaCompletionTracker-ci-test.zip | grep -q "MetaCompletionTracker/MetaCompletionTracker.toc"
+          for forbidden in ".github" "move.ps1" "README.md" "MCT_Logo.png" ".luacheckrc" "CONTRIBUTING.md" "SECURITY.md"; do
+            if unzip -l MetaCompletionTracker-ci-test.zip | grep -q "$forbidden"; then
+              echo "ERROR: Non-addon file '$forbidden' found in packaged zip!"
+              exit 1
+            fi
+          done

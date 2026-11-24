@@ -2,8 +2,9 @@
 ## Title: |cFF00A6FFMetaCompletionTracker|r
 ## Notes: Track progress and missing requirements for expansion-wide and custom meta-achievements.
 ## Author: Egepi, Toddish
-## Version: 2.1.2
+## Version: 2.2.0
 ## SavedVariables: MCT_DB
+## X-Curse-Project-ID: 1151893
 
 Presets.lua
 WorldQuests.lua

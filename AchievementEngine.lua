@@ -1,5 +1,5 @@
 -- AchievementEngine.lua: Data extraction and recursive criteria walker for MCT
-local addonName, MCT = ...
+local _, MCT = ...
 
 MCT.Engine = MCT.Engine or {}
 
@@ -41,6 +41,9 @@ local knownMetaParents = {
     -- Shadowlands: Back from the Beyond (20501)
     [20501] = { presetID = 20501, presetName = "Shadowlands: Back from the Beyond", shortName = "SL", expansion = "Shadowlands" },
 
+    -- The War Within
+    [61451] = { presetID = 61451, presetName = "The War Within: Worldsoul-Searching", shortName = "TWW", expansion = "The War Within" },
+
     -- Midnight
     [62386] = { presetID = 62386, presetName = "Midnight: Light Up the Night", shortName = "MID", expansion = "Midnight" },
     [63630] = { presetID = 63630, presetName = "Assault the Vault", shortName = "Vault", expansion = "Midnight" },
@@ -59,9 +62,6 @@ end
 ---------------------------------------------------------------------------
 -- Main Engine Functions
 ---------------------------------------------------------------------------
--- Cache for achievement meta-data
-local achievementCache = {}
-
 -- Safe retrieval of achievement info with fallback defaults
 function MCT.Engine.GetAchievementData(achievementID)
     if not achievementID then
@@ -93,7 +93,7 @@ function MCT.Engine.GetAchievementData(achievementID)
         return nil
     end
 
-    local id, name, points, completed, month, day, year, description, flags, icon, rewardText, isGuild, wasEarnedByMe, earnedBy = GetAchievementInfo(achievementID)
+    local id, name, points, completed, _, _, _, description, _, icon, rewardText, _, wasEarnedByMe, earnedBy = GetAchievementInfo(achievementID)
     
     if not id or not name or name == "" then
         -- Return temporary fallback while client requests data from server
@@ -130,7 +130,6 @@ function MCT.Engine.GetAchievementData(achievementID)
         isLoaded = true,
     }
 
-    achievementCache[achievementID] = data
     return data
 end
 
@@ -145,21 +144,19 @@ function MCT.Engine.GetCriteriaTree(achievementID, maxDepth, currentDepth, visit
         return nil
     end
 
-    if not rootMetaPreset and MCT.Presets then
-        for _, p in ipairs(MCT.Presets) do
-            if p.id == achievementID then
-                rootMetaPreset = p
-                break
-            end
-        end
-    end
-
     local customPreset = nil
     if MCT.Presets then
         for _, p in ipairs(MCT.Presets) do
-            if p.id == achievementID and p.achievements then
-                customPreset = p
-                break
+            if p.id == achievementID then
+                if not rootMetaPreset then
+                    rootMetaPreset = p
+                end
+                if p.achievements then
+                    customPreset = p
+                end
+                if rootMetaPreset and customPreset then
+                    break
+                end
             end
         end
     end
@@ -261,7 +258,7 @@ function MCT.Engine.GetCriteriaTree(achievementID, maxDepth, currentDepth, visit
     tree.totalCriteria = numCriteria
 
     for i = 1, numCriteria do
-        local criteriaString, criteriaType, completed, quantity, reqQuantity, charName, flags, assetID, quantityString, criteriaID = GetAchievementCriteriaInfo(achievementID, i)
+        local criteriaString, criteriaType, completed, quantity, reqQuantity, _, _, assetID, quantityString, criteriaID = GetAchievementCriteriaInfo(achievementID, i)
         
         local item = {
             index = i,

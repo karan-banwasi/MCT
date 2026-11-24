@@ -1,5 +1,5 @@
 -- Presets.lua: Expansion-specific and iconic meta-achievement definitions for MCT
-local addonName, MCT = ...
+local _, MCT = ...
 
 ---------------------------------------------------------------------------
 -- Top-Level Expansion Definitions
@@ -127,10 +127,22 @@ MCT.Presets = {
 
     -- The War Within
     {
+        id = 61451,
+        name = "The War Within: Worldsoul-Searching",
+        subHeading = "Worldsoul-Searching",
+        shortName = "TWW",
+        expansionKey = "TWW",
+        expansion = "The War Within",
+        category = "Expansion Super-Meta",
+        reward = "Geargrinder Mk. 11 (Mount) & Drained Dark Heart of Galakrond (Decor)",
+        icon = 5342938,
+        description = "Complete all major The War Within raid, delve, zone, campaign, and exploration meta-achievements.",
+    },
+    {
         id = 40537,
         name = "The War Within: Khaz Algar Diplomat",
         subHeading = "Khaz Algar Diplomat",
-        shortName = "TWW",
+        shortName = "Diplomat",
         expansionKey = "TWW",
         expansion = "The War Within",
         category = "Expansion Meta",

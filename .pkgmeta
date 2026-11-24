@@ -4,6 +4,10 @@ enable-nolib-creation: no
 ignore:
   - .github
   - .gitignore
+  - .luacheckrc
   - move.ps1
   - MCT_Logo.png
   - README.md
+  - CONTRIBUTING.md
+  - SECURITY.md
+

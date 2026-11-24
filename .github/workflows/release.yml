@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version tag (e.g. v2.0.0)'
+        description: 'Release version tag (e.g. v2.2.0)'
         required: false
         default: ''
 
@@ -19,53 +19,90 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
-      - name: Determine Version
+      - name: Install lint and packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y luacheck zip unzip
+
+      - name: Run luacheck
+        run: luacheck .
+
+      - name: Determine and Validate Version
         id: get_version
         run: |
+          set -euo pipefail
+          TOC_FILE="MetaCompletionTracker.toc"
+          TOC_VERSION=$(grep -i '^## Version:' "$TOC_FILE" | head -n1 | sed 's/^## Version:[[:space:]]*//' | tr -d '\r' | xargs)
+          if [ -z "$TOC_VERSION" ]; then
+            echo "ERROR: Could not read ## Version from $TOC_FILE."
+            exit 1
+          fi
+
           if [ -n "${{ github.event.inputs.version }}" ]; then
             VERSION="${{ github.event.inputs.version }}"
           elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
             VERSION="${GITHUB_REF#refs/tags/}"
           else
-            TOC_VERSION=$(grep -i '^## Version:' MetaCompletionTracker.toc | awk '{print $3}' | tr -d '\r')
-            if [ -n "$TOC_VERSION" ]; then
-              VERSION="v${TOC_VERSION}"
-            else
-              VERSION="v2.0.0"
-            fi
+            VERSION="v${TOC_VERSION}"
           fi
-          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-          echo "Target version: $VERSION"
+
+          TAG_SEMVER="${VERSION#v}"
+          if [ "$TAG_SEMVER" != "$TOC_VERSION" ]; then
+            echo "ERROR: Release version '$VERSION' does not match ## Version '$TOC_VERSION' in $TOC_FILE."
+            exit 1
+          fi
+
+          while IFS= read -r raw_line || [ -n "$raw_line" ]; do
+            line=$(printf '%s' "$raw_line" | tr -d '\r' | xargs)
+            if [ -z "$line" ] || [[ "$line" == \#* ]]; then
+              continue
+            fi
+            if [ ! -f "$line" ]; then
+              echo "ERROR: File listed in $TOC_FILE does not exist: '$line'"
+              exit 1
+            fi
+          done < "$TOC_FILE"
+
+          echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Target version verified: $VERSION (TOC: $TOC_VERSION)"
 
       - name: Package Addon Zip
         run: |
+          set -euo pipefail
           VERSION="${{ steps.get_version.outputs.VERSION }}"
+          TOC_FILE="MetaCompletionTracker.toc"
           STAGING_DIR="staging/MetaCompletionTracker"
+          rm -rf staging
           mkdir -p "$STAGING_DIR"
 
-          # Copy addon files into the MetaCompletionTracker folder
-          cp MetaCompletionTracker.toc "$STAGING_DIR/"
-          cp Presets.lua "$STAGING_DIR/"
-          cp WorldQuests.lua "$STAGING_DIR/"
-          cp AchievementEngine.lua "$STAGING_DIR/"
-          cp MCT.lua "$STAGING_DIR/"
+          cp "$TOC_FILE" "$STAGING_DIR/"
+          if [ -f "LICENSE" ]; then
+            cp "LICENSE" "$STAGING_DIR/"
+          fi
 
-          # Package into zip with MetaCompletionTracker as root folder
-          cd staging
+          while IFS= read -r raw_line || [ -n "$raw_line" ]; do
+            line=$(printf '%s' "$raw_line" | tr -d '\r' | xargs)
+            if [ -z "$line" ] || [[ "$line" == \#* ]]; then
+              continue
+            fi
+            dest_dir="$STAGING_DIR/$(dirname "$line")"
+            mkdir -p "$dest_dir"
+            cp "$line" "$dest_dir/"
+          done < "$TOC_FILE"
+
           ZIP_NAME="MetaCompletionTracker-${VERSION}.zip"
-          zip -r "../${ZIP_NAME}" MetaCompletionTracker
-          cd ..
+          (cd staging && zip -r "../${ZIP_NAME}" MetaCompletionTracker)
 
-          echo "ZIP_NAME=${ZIP_NAME}" >> $GITHUB_ENV
+          echo "ZIP_NAME=${ZIP_NAME}" >> "$GITHUB_ENV"
           echo "Generated Archive: ${ZIP_NAME}"
           unzip -l "${ZIP_NAME}"
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ steps.get_version.outputs.VERSION }}
           name: ${{ steps.get_version.outputs.VERSION }}
@@ -73,3 +110,22 @@ jobs:
           generate_release_notes: true
           draft: false
           prerelease: ${{ contains(steps.get_version.outputs.VERSION, 'alpha') || contains(steps.get_version.outputs.VERSION, 'beta') }}
+
+      - name: Check CurseForge / Wago Publish Secrets
+        id: check_publish_secrets
+        env:
+          CF_API_KEY: ${{ secrets.CF_API_KEY }}
+          WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
+        run: |
+          if [ -n "$CF_API_KEY" ] || [ -n "$WAGO_API_TOKEN" ]; then
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Package and Publish to CurseForge / Wago
+        if: steps.check_publish_secrets.outputs.should_publish == 'true'
+        uses: BigWigsMods/packager@01e8631a69c69d7654c788d152630d5fed9e3812 # v2
+        env:
+          CF_API_KEY: ${{ secrets.CF_API_KEY }}
+          WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
