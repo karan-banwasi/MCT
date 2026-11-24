@@ -26,7 +26,7 @@ local knownMetaParents = {
     [13541] = { presetID = 40953, presetName = "Battle for Azeroth: A Farewell to Arms", shortName = "BfA", expansion = "Battle for Azeroth", path = "Mecha-Done" },
     [13638] = { presetID = 40953, presetName = "Battle for Azeroth: A Farewell to Arms", shortName = "BfA", expansion = "Battle for Azeroth", path = "Undersea Usurper" },
     [13517] = { presetID = 40953, presetName = "Battle for Azeroth: A Farewell to Arms", shortName = "BfA", expansion = "Battle for Azeroth", path = "Two Sides to Every Tale" },
-    
+
     -- Mecha-Done sub-achievements (13541)
     [13554] = { presetID = 13541, presetName = "Mecha-Done", shortName = "Mecha", expansion = "Battle for Azeroth" },
     [13545] = { presetID = 13638, presetName = "Undersea Usurper", shortName = "Nazjatar", expansion = "Battle for Azeroth" },
@@ -37,7 +37,7 @@ local knownMetaParents = {
     [19458] = { presetID = 19458, presetName = "Dragonflight: A World Awoken", shortName = "DF", expansion = "Dragonflight" },
     [16588] = { presetID = 19458, presetName = "Dragonflight: A World Awoken", shortName = "DF", expansion = "Dragonflight" },
     [16493] = { presetID = 19458, presetName = "Dragonflight: A World Awoken", shortName = "DF", expansion = "Dragonflight" },
-    
+
     -- Shadowlands: Back from the Beyond (20501)
     [20501] = { presetID = 20501, presetName = "Shadowlands: Back from the Beyond", shortName = "SL", expansion = "Shadowlands" },
 
@@ -94,7 +94,7 @@ function MCT.Engine.GetAchievementData(achievementID)
     end
 
     local id, name, points, completed, _, _, _, description, _, icon, rewardText, _, wasEarnedByMe, earnedBy = GetAchievementInfo(achievementID)
-    
+
     if not id or not name or name == "" then
         -- Return temporary fallback while client requests data from server
         return {
@@ -259,7 +259,7 @@ function MCT.Engine.GetCriteriaTree(achievementID, maxDepth, currentDepth, visit
 
     for i = 1, numCriteria do
         local criteriaString, criteriaType, completed, quantity, reqQuantity, _, _, assetID, quantityString, criteriaID = GetAchievementCriteriaInfo(achievementID, i)
-        
+
         local item = {
             index = i,
             criteriaID = criteriaID,
@@ -294,7 +294,7 @@ function MCT.Engine.GetCriteriaTree(achievementID, maxDepth, currentDepth, visit
                     expansion = rootMetaPreset.expansion,
                 }
             end
-            
+
             -- If sub-achievement has criteria and depth permits, query its sub-tree
             if currentDepth < maxDepth then
                 local subNumCriteria = GetAchievementNumCriteria(assetID) or 0

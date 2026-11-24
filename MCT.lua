@@ -974,7 +974,7 @@ local function AcquireRow()
                 else
                     GameTooltip:AddLine(self.data.name or ("Achievement #" .. tostring(self.data.id)), 1, 0.82, 0)
                 end
-                
+
                 if self.wqBadge and self.wqBadge.worldQuestData then
                     local wq = self.wqBadge.worldQuestData
                     GameTooltip:AddLine(" ")
@@ -1568,7 +1568,7 @@ end)
 SLASH_MCT1 = "/mct"
 SlashCmdList["MCT"] = function(msg)
     local command = msg and msg:trim() or ""
-    
+
     if command == "reset" then
         MCT_DB = {}
         hideCompletedCheck:SetChecked(false)

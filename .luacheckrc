@@ -34,13 +34,13 @@ read_globals = {
     "QuestUtils_IsQuestWorldQuest",
     "Enum",
     "IsShiftKeyDown",
-    "SlashCmdList",
     "tinsert",
     "strtrim",
 }
 
 globals = {
     "MCT_DB",
+    "SlashCmdList",
     "SLASH_MCT1",
     "SLASH_HIDEMCT1",
 }
