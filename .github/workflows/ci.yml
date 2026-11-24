@@ -19,7 +19,15 @@ jobs:
       - name: Install lint and packaging tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y luacheck zip unzip
+          sudo apt-get install -y zip unzip
+          if apt-cache show luacheck >/dev/null 2>&1; then
+            sudo apt-get install -y luacheck
+          elif apt-cache show lua-check >/dev/null 2>&1; then
+            sudo apt-get install -y lua-check
+          else
+            sudo apt-get install -y lua5.1 liblua5.1-0-dev luarocks build-essential
+            sudo luarocks install luacheck
+          fi
 
       - name: Run luacheck
         run: luacheck .
